@@ -6,7 +6,7 @@ import secrets
 
 import care
 
-PREFIX = 'ekorn:1:'
+PREFIX = 'acorn:1:'
 TEST_TEXT = '✅ Тест кнопки'
 
 

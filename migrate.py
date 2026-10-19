@@ -13,7 +13,7 @@ def migrate(source, operator_id, now):
     state = copy.deepcopy(source)
     validate_care_config(state['config'])
     if state['config']['timezone'] != str(care.TZ):
-        raise ValueError('Set EKORN_CONFIG_PATH to a configuration with the source timezone')
+        raise ValueError('Set ACORN_CONFIG_PATH to a configuration with the source timezone')
     if not isinstance(state['tasks'], dict) or not isinstance(state['checklists'], dict):
         raise ValueError('Invalid care state')
     # Remove only transport state. Historical caregiver records and audit entries remain intact.

@@ -41,6 +41,7 @@ class InlineTests(unittest.TestCase):
                                          {USER_ID}, BOT_ID, at, -1000000000001, 42)
 
     def test_buttons_are_attached_to_message(self):
+        self.assertEqual(inline_ui.PREFIX, 'acorn:1:')
         keyboard = inline_ui.keyboard(self.state, self.panel)
         self.assertNotIn('keyboard', keyboard)
         self.assertEqual(len(keyboard['inline_keyboard']), 5)
@@ -151,6 +152,14 @@ class InlineTests(unittest.TestCase):
                 before = copy.deepcopy(self.state)
                 self.assertTrue(self.accept(callback)['show_alert'])
                 self.assertEqual(before, self.state)
+
+    def test_retired_callback_prefix_does_not_change_care(self):
+        callback = self.callback()
+        prefix = '\u0065\u006b\u006f\u0072\u006e:1:'
+        callback['data'] = prefix + self.panel['nonce'] + ':0'
+        before = copy.deepcopy(self.state)
+        self.assertIsNone(self.accept(callback))
+        self.assertEqual(before, self.state)
 
     def test_approval_callbacks_are_not_intercepted(self):
         callback = self.callback()

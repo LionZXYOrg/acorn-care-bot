@@ -212,7 +212,9 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(state['tasks'][self.key]['status'], 'deferred')
         self.assertEqual(state['tasks'][dry]['skip_by'], 'telegram:101')
         self.assertEqual(state['tasks'][self.key]['grams'], 49)
-        self.assertIn('/done YYYY', ''.join(state['standalone']['outbox']['update:10']['texts']))
+        status = ''.join(state['standalone']['outbox']['update:10']['texts'])
+        self.assertTrue(status.startswith('Acorn: '))
+        self.assertIn('/done YYYY', status)
 
     def test_unknown_send_outcome_is_never_replayed(self):
         self.bot.process_update(self.msg('/status'))
@@ -317,6 +319,19 @@ class ServiceTests(unittest.TestCase):
 
 
 class ConfigurationAndTransportTests(unittest.TestCase):
+    def test_acorn_environment_sets_state_and_health_listener(self):
+        env = {'TELEGRAM_CHAT_ID': str(CHAT), 'TELEGRAM_TOPIC_ID': str(TOPIC),
+               'TELEGRAM_ALLOWED_USER_IDS': '101, 102',
+               'ACORN_STATE_PATH': '/data/acorn-state.json',
+               'ACORN_HTTP_HOST': '127.0.0.1', 'ACORN_HTTP_PORT': '9090'}
+        with patch.dict(os.environ, env, clear=True):
+            runtime = Runtime.from_env()
+        self.assertEqual(runtime.state_path, Path('/data/acorn-state.json'))
+        self.assertEqual(runtime.http_host, '127.0.0.1')
+        self.assertEqual(runtime.http_port, 9090)
+        self.assertEqual(runtime.allowed_ids, {101, 102})
+        self.assertEqual((runtime.chat_id, runtime.topic_id), (CHAT, TOPIC))
+
     def test_numeric_ids_are_explicit_and_required(self):
         env = {'TELEGRAM_CHAT_ID': str(CHAT), 'TELEGRAM_TOPIC_ID': str(TOPIC),
                'TELEGRAM_ALLOWED_USER_IDS': '101, 102'}
@@ -346,7 +361,7 @@ class ConfigurationAndTransportTests(unittest.TestCase):
                 self.assertEqual(read_token(), synthetic)
             state = Path(directory) / 'absent-state.json'
             env = {k: v for k, v in os.environ.items() if not k.startswith('TELEGRAM_')}
-            env.update(EKORN_STATE_PATH=str(state), PYTHONDONTWRITEBYTECODE='1')
+            env.update(ACORN_STATE_PATH=str(state), PYTHONDONTWRITEBYTECODE='1')
             process = subprocess.run([sys.executable, '-m', 'service'], cwd=ROOT, env=env, capture_output=True)
             self.assertEqual(process.returncode, 1)
             self.assertFalse(state.exists())
@@ -360,7 +375,7 @@ class ConfigurationAndTransportTests(unittest.TestCase):
             path = Path(directory) / 'custom.json'
             path.write_text(json.dumps(config))
             state = Path(directory) / 'custom-state.json'
-            env = {**os.environ, 'EKORN_CONFIG_PATH': str(path), 'EKORN_STATE_PATH': str(state),
+            env = {**os.environ, 'ACORN_CONFIG_PATH': str(path), 'ACORN_STATE_PATH': str(state),
                    'PYTHONDONTWRITEBYTECODE': '1'}
             result = subprocess.run([sys.executable, '-c',
                 'import care; print(care.STATE, care.TZ, care.DEFAULT_WET_CAN_GRAMS, care.initial()["config"]["wet_can_grams"])'],

@@ -22,7 +22,7 @@ class CareTests(unittest.TestCase):
 
     def test_first_breakfast(self):
         text = self.tick('2026-10-19T07:00:00+01:00')
-        self.assertTrue(text.startswith('🐾 Экорн · завтрак и утренняя уборка\n'))
+        self.assertTrue(text.startswith('🐾 Acorn · завтрак и утренняя уборка\n'))
         self.assertIn('Caregivers, доброе утро!', text)
         self.assertIn('Сегодня меняются порции', text)
         self.assertIn('Дать ≈1/4 банки влажного', text)
@@ -266,9 +266,9 @@ class CareTests(unittest.TestCase):
 
     def test_grouped_first_breakfast_keeps_stage_notice(self):
         expected = (
-            '🐾 Экорн · завтрак и утренняя уборка\n'
+            '🐾 Acorn · завтрак и утренняя уборка\n'
             '19 октября · 07:00\n'
-            'Caregivers, доброе утро! Пора покормить Экорна и немного прибраться.\n\n'
+            'Caregivers, доброе утро! Пора покормить Acorn и немного прибраться.\n\n'
             '**Сегодня меняются порции**\n'
             '07:00: ≈1/4 банки влажного + 10 г сухого.\n'
             '14:00: ≈1/4 банки влажного + 10 г сухого.\n'
@@ -294,9 +294,9 @@ class CareTests(unittest.TestCase):
         slot = self.s['config']['slots'][0]
         cid = care.ensure_checklist(self.s, date(2026, 10, 20), slot, 0)
         expected = (
-            '🐾 Экорн · завтрак и утренняя уборка\n'
+            '🐾 Acorn · завтрак и утренняя уборка\n'
             '20 октября · 07:00\n'
-            'Caregivers, доброе утро! Пора покормить Экорна и немного прибраться.\n\n'
+            'Caregivers, доброе утро! Пора покормить Acorn и немного прибраться.\n\n'
             '🍽 Кормление\n'
             '☐ Дать ≈1/4 банки влажного корма.\n'
             '☐ Дать 10 г сухого корма.\n\n'
@@ -315,9 +315,9 @@ class CareTests(unittest.TestCase):
         slot = self.s['config']['slots'][1]
         cid = care.ensure_checklist(self.s, date(2026, 10, 20), slot, 1)
         expected = (
-            '🐾 Экорн · обед\n'
+            '🐾 Acorn · обед\n'
             '20 октября · 14:00\n'
-            'Caregivers, добрый день! Пора покормить Экорна.\n\n'
+            'Caregivers, добрый день! Пора покормить Acorn.\n\n'
             '🍽 Кормление\n'
             '☐ Дать ≈1/4 банки влажного корма.\n'
             '☐ Дать 10 г сухого корма.\n\n'
@@ -325,7 +325,7 @@ class CareTests(unittest.TestCase):
             '⏰ Через 30 минут напомню только о неотмеченных пунктах.'
         )
         self.assertEqual(care.render_checklist(self.s, cid), expected)
-        updated = expected.replace('добрый день! Пора покормить Экорна.', 'отметки обновлены.')
+        updated = expected.replace('добрый день! Пора покормить Acorn.', 'отметки обновлены.')
         updated = updated.replace('Через 30 минут напомню', 'Напомню')
         self.assertEqual(care.render_checklist(self.s, cid, updated=True), updated)
         self.assertNotIn('Уборка и вода', expected)
@@ -334,7 +334,7 @@ class CareTests(unittest.TestCase):
         slot = self.s['config']['slots'][2]
         cid = care.ensure_checklist(self.s, date(2026, 10, 20), slot, 2)
         text = care.render_checklist(self.s, cid)
-        self.assertTrue(text.startswith('🐾 Экорн · ужин и вечерняя уборка\n20 октября · 19:00\n'))
+        self.assertTrue(text.startswith('🐾 Acorn · ужин и вечерняя уборка\n20 октября · 19:00\n'))
         self.assertIn('Caregivers, добрый вечер!', text)
         self.assertIn('🍽 Кормление', text)
         self.assertIn('🧹 Уборка\n', text)

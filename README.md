@@ -1,9 +1,11 @@
-# Ekorn care bot
+# Acorn care bot
 
 This bot sends shared feeding and cleaning checklists to one Telegram topic.
 It stores each task and caregiver confirmation in one persistent record.
 It runs without ZeroClaw, an AI model, or third-party Python packages.
 The application requires Python 3.12 or later and Linux file locks.
+The cat's name is `Acorn` in the configuration and messages.
+The source repository is [LionZXYOrg/acorn-care-bot](https://github.com/LionZXYOrg/acorn-care-bot).
 
 The example plan uses `07:00`, `14:00`, and `19:00` in `Europe/London`.
 Quiet hours run from `23:00` to `07:00`, including seasonal clock changes.
@@ -44,10 +46,10 @@ Set the following environment variables before startup:
 | `TELEGRAM_CHAT_ID` | Numeric Telegram chat ID. |
 | `TELEGRAM_TOPIC_ID` | Numeric topic ID in that chat. |
 | `TELEGRAM_ALLOWED_USER_IDS` | Comma-separated numeric caregiver IDs. Usernames do not grant access. |
-| `EKORN_CONFIG_PATH` | Protected care JSON file. The default is `config.example.json`. |
-| `EKORN_STATE_PATH` | Persistent record. The default is `/data/state.json`. |
-| `EKORN_HTTP_HOST` | Health server address. The default is `0.0.0.0`. |
-| `EKORN_HTTP_PORT` | Health server port. The default is `8080`. |
+| `ACORN_CONFIG_PATH` | Protected care JSON file. The default is `config.example.json`. |
+| `ACORN_STATE_PATH` | Persistent record. The default is `/data/state.json`. |
+| `ACORN_HTTP_HOST` | Health server address. The default is `0.0.0.0`. |
+| `ACORN_HTTP_PORT` | Health server port. The default is `8080`. |
 
 A configured token file takes precedence over the token environment variable.
 If the file is missing, the bot refuses startup instead of using another token.
@@ -120,7 +122,7 @@ The import is an offline step that requires a separate output file.
    ```
 
 6. Review the imported task states, pending schedule changes, health hold, and caregiver provenance.
-7. Mount the imported file at `EKORN_STATE_PATH` with owner `10001:10001`.
+7. Mount the imported file at `ACORN_STATE_PATH` with owner `10001:10001`.
 8. Start the new service and make sure that `/readyz` succeeds.
 9. Test one confirmation with the new bot before ending the cutover.
 
@@ -140,10 +142,12 @@ python3 -m unittest discover -s tests -v
 
 The tests use generated records, fake Telegram requests, and local health servers.
 They cover shared confirmations, stale and future buttons, quiet hours, stage notices, health holds, migration, and uncertain sends.
+The tests also reject retired names in tracked files and require `Acorn` in the example configuration and messages.
 No test needs a real bot token, Telegram history, or private runtime state.
 
 GitHub Actions runs the tests on Python 3.12 and 3.13.
 On `main`, it publishes `linux/amd64` and `linux/arm64` images to GitHub Container Registry (GHCR).
+The image name is `ghcr.io/lionzxyorg/acorn-care-bot`.
 Each image has a `sha-COMMIT` tag and a moving `main` tag.
 Deployment manifests must use the tested commit tag or image digest, not the moving tag.
 The private package requires a registry credential with `read:packages` permission.
@@ -151,7 +155,7 @@ The workflow uses its short-lived `GITHUB_TOKEN` to publish images.
 A local container build needs Docker:
 
 ```bash
-docker build --tag ekorn-care-bot:local .
+docker build --tag acorn-care-bot:local .
 ```
 
 The [infra repository](https://github.com/LionZXYOrg/infra) contains the Flux deployment.

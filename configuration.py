@@ -85,13 +85,13 @@ class Runtime:
     def from_env(cls):
         ids = os.environ.get('TELEGRAM_ALLOWED_USER_IDS', '').split(',')
         allowed = frozenset(integer(s.strip(), positive=True) for s in ids)
-        port = integer(os.environ.get('EKORN_HTTP_PORT', '8080'), positive=True)
+        port = integer(os.environ.get('ACORN_HTTP_PORT', '8080'), positive=True)
         if port > 65535:
             raise ValueError('Invalid HTTP port')
         return cls(integer(os.environ.get('TELEGRAM_CHAT_ID')),
                    integer(os.environ.get('TELEGRAM_TOPIC_ID'), positive=True), allowed,
-                   Path(os.environ.get('EKORN_STATE_PATH', '/data/state.json')),
-                   os.environ.get('EKORN_HTTP_HOST', '0.0.0.0'), port)
+                   Path(os.environ.get('ACORN_STATE_PATH', '/data/state.json')),
+                   os.environ.get('ACORN_HTTP_HOST', '0.0.0.0'), port)
 
 
 def read_token():

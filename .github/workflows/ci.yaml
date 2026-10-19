@@ -58,11 +58,11 @@ jobs:
             --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --tag "$IMAGE:sha-$GITHUB_SHA" --tag "$IMAGE:main" \
-            --metadata-file /tmp/ekorn-image.json .
+            --metadata-file /tmp/acorn-image.json .
           python3 - <<'PY'
           import json, os
           from pathlib import Path
-          value = json.loads(Path('/tmp/ekorn-image.json').read_text())
+          value = json.loads(Path('/tmp/acorn-image.json').read_text())
           digest = value['containerimage.digest']
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
               out.write('Published image digest: `' + digest + '`\n')

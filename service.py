@@ -1,4 +1,4 @@
-"""Standalone Ekorn care service. One poller and one serialized dispatch worker."""
+"""Standalone Acorn care service. One poller and one serialized dispatch worker."""
 import argparse
 import json
 import logging
@@ -16,7 +16,7 @@ from configuration import Runtime, read_token
 from storage import Store
 from telegram_api import Client, TelegramError
 
-LOG = logging.getLogger('ekorn')
+LOG = logging.getLogger('acorn')
 HELP = ('Используйте кнопки или точную команду для одного сохранённого пункта:\n'
         '/done YYYY-MM-DD_HH:MM_wet\n/skip YYYY-MM-DD_HH:MM_wet\n'
         '/snooze YYYY-MM-DD_HH:MM_wet 30\n'
@@ -87,7 +87,7 @@ class Bot:
         tasks = [t for t in care.unresolved(view) if care.due(t) <= now]
         text = care.render_reminders(view, tasks) if tasks else 'Незакрытых задач нет.'
         stage = care.stage_for(view, now.date())
-        return ('Экорн: ' + care.stage_label(stage, now.date(), view) + '\n' + text + '\n\n' + HELP)
+        return ('Acorn: ' + care.stage_label(stage, now.date(), view) + '\n' + text + '\n\n' + HELP)
 
     def message(self, state, message, now):
         if not self.scoped_message(message) or not isinstance(message.get('text'), str):
@@ -386,8 +386,8 @@ def main():
         bot = Bot(runtime, client, me['id'], me['username'], store)
         bot.stop = stop
         server = health_server(bot)
-        threads = [threading.Thread(target=server.serve_forever, daemon=True),
-                   threading.Thread(target=bot.worker_loop, daemon=True)]
+        threads = [threading.Thread(target=server.serve_forever, name='acorn-health', daemon=True),
+                   threading.Thread(target=bot.worker_loop, name='acorn-dispatch', daemon=True)]
         for thread in threads:
             thread.start()
         bot.poll_loop()  # The sole getUpdates loop.

@@ -15,8 +15,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent
-CONFIG_PATH = Path(os.environ.get('EKORN_CONFIG_PATH', ROOT / 'config.example.json'))
-STATE = Path(os.environ.get('EKORN_STATE_PATH', '/data/state.json'))
+CONFIG_PATH = Path(os.environ.get('ACORN_CONFIG_PATH', ROOT / 'config.example.json'))
+STATE = Path(os.environ.get('ACORN_STATE_PATH', '/data/state.json'))
 from configuration import load_care_config
 BOOT_CONFIG = load_care_config(CONFIG_PATH)
 TZ = ZoneInfo(BOOT_CONFIG['timezone'])
@@ -372,11 +372,11 @@ def render_checklist(s, cid, updated=False):
     if updated:
         introduction = f'{s["config"]["mention"]}, отметки обновлены.'
     else:
-        action = 'Пора покормить Экорна и немного прибраться.' if cleaning else 'Пора покормить Экорна.'
+        action = 'Пора покормить Acorn и немного прибраться.' if cleaning else 'Пора покормить Acorn.'
         if any(task['status'] != 'pending' or task.get('needs_clarification') for task in tasks):
             action = 'Проверьте оставшиеся пункты.'
         introduction = f'{s["config"]["mention"]}, {greeting}! {action}'
-    lines = [f'🐾 Экорн · {checklist["label"].lower()}',
+    lines = [f'🐾 Acorn · {checklist["label"].lower()}',
              f'{day_label(day)} · {checklist["time"]}', introduction]
     if s.get('progression_hold'):
         lines.extend(['', '⚠️ ' + stage_label(stage, day, s)])

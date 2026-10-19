@@ -1,7 +1,9 @@
 import argparse
 import copy
+import json
 from pathlib import Path
 import re
+import subprocess
 import unittest
 
 import care
@@ -11,6 +13,28 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ReleaseContractTests(unittest.TestCase):
+    def test_tracked_paths_and_text_have_no_retired_name(self):
+        # Escape retired spellings so this test does not keep them in tracked text.
+        retired = ('\u0065\u006b\u006f\u0072\u006e', '\u044d\u043a\u043e\u0440\u043d')
+        paths = subprocess.check_output(['git', 'ls-files', '-z'], cwd=ROOT).decode().split('\0')
+        self.assertIn('config.example.json', paths)
+        self.assertIn('service.py', paths)
+        for name in filter(None, paths):
+            with self.subTest(path=name):
+                text = (ROOT / name).read_text(encoding='utf-8').casefold()
+                for spelling in retired:
+                    self.assertNotIn(spelling, name.casefold())
+                    self.assertNotIn(spelling, text)
+
+    def test_configured_cat_name_and_messages_use_acorn(self):
+        config = json.loads((ROOT / 'config.example.json').read_text())
+        self.assertEqual(config['name'], 'Acorn')
+        state = care.initial()
+        self.assertEqual(state['config']['name'], 'Acorn')
+        text = care.tick(state, care.instant('2026-10-19T07:00:00+01:00'))
+        self.assertTrue(text.startswith('🐾 Acorn · '))
+        self.assertIn('Пора покормить Acorn и немного прибраться.', text)
+
     def test_example_has_the_requested_three_meals_and_early_quiet_end(self):
         state = care.initial()
         self.assertEqual([s['time'] for s in state['config']['slots']], ['07:00', '14:00', '19:00'])
@@ -21,7 +45,10 @@ class ReleaseContractTests(unittest.TestCase):
         text = (ROOT / 'Dockerfile').read_text()
         self.assertIn('USER 10001:10001', text)
         self.assertIn('ca-certificates tzdata', text)
-        self.assertIn('EKORN_STATE_PATH=/data/state.json', text)
+        self.assertIn('ACORN_CONFIG_PATH=/app/config.example.json', text)
+        self.assertIn('ACORN_STATE_PATH=/data/state.json', text)
+        self.assertIn('groupadd --gid 10001 acorn', text)
+        self.assertIn('--home-dir /app acorn', text)
         self.assertIn('CMD ["python3", "service.py"]', text)
         self.assertNotRegex(text, r'(?m)^COPY\s+(?:\.\s|\*\s)')
         for source in ('care.py', 'configuration.py', 'inline_ui.py', 'migrate.py', 'service.py', 'storage.py', 'telegram_api.py'):
