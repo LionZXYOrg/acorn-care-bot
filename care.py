@@ -202,22 +202,50 @@ def next_care(s, now):
     raise ValueError('Следующий уход не найден. Пункт не изменён.')
 
 
+def food_grams(value):
+    """Keep whole grams integral and add decimal portions without float drift."""
+    value = Fraction(str(value))
+    return int(value) if value.denominator == 1 else float(value)
+
+
+def add_carried_food(task, portions):
+    """Add each source portion once, including earlier carries in that source."""
+    if not portions:
+        return
+    if task['status'] in CLOSED:
+        raise ValueError('Пункт назначения уже закрыт. Перенос сохранён для проверки.')
+    carried = task.setdefault('carried_portions', {})
+    task.setdefault('planned_grams', task['grams'])
+    for source, grams in portions.items():
+        if source not in carried:
+            carried[source] = grams
+    total = sum((Fraction(str(value)) for value in carried.values()), Fraction(0))
+    task['carried_grams'] = food_grams(total)
+    task['grams'] = food_grams(Fraction(str(task['planned_grams'])) + total)
+
+
 def apply_carryovers(s, cid):
-    """Add one-time cleaning tasks when the target checklist becomes due."""
+    """Apply one-time tasks and explicitly recorded food amounts at their due time."""
     checklist = s['checklists'][cid]
     queue = s.get('carryovers', {})
     for key, item in list(queue.items()):
         if item['checklist'] != cid:
             continue
         task = s['tasks'].get(key)
-        if task is None and item['type'] in CLEANING:
-            task = {'id': key, 'checklist': cid, 'type': item['type'], 'grams': None,
+        food = item['type'] in {'wet', 'dry'}
+        portions = item.get('food_grams', {})
+        if task is None and (item['type'] in CLEANING or (food and portions)):
+            task = {'id': key, 'checklist': cid, 'type': item['type'], 'grams': 0 if food else None,
                     'due_at': item['due_at'], 'status': 'pending', 'needs_clarification': False,
                     'next_repeat_at': None, 'snoozed_until': None,
                     'done_by': None, 'done_at': None, 'skip_by': None, 'skip_at': None}
             s['tasks'][key] = task
             checklist['task_ids'].append(key)
-        # Food remains the planned portion. A diet change must not recreate old food.
+            if item['type'] == 'wet':
+                task['wet_can_grams'] = s['config']['wet_can_grams']
+        if food and task is not None:
+            add_carried_food(task, portions)
+        # Legacy entries without recorded grams remain reminder-only transfers.
         if task is not None:
             sources = task.setdefault('carried_from', [])
             for source in item['source_ids']:
@@ -227,7 +255,7 @@ def apply_carryovers(s, cid):
 
 
 def move_to_next(s, task_id, actor, now, message_id=None, telegram_user_id=None):
-    """Skip one open task and carry its reminder to the next care checklist."""
+    """Move an open task, using the owner-confirmed policy for food amounts."""
     task = s['tasks'].get(task_id)
     if task is None or due(task) > now:
         raise ValueError('Задача не найдена или её время ещё не наступило. Пункт не изменён.')
@@ -240,9 +268,12 @@ def move_to_next(s, task_id, actor, now, message_id=None, telegram_user_id=None)
     if target is not None and target['status'] in CLOSED:
         raise ValueError('Этот пункт следующего ухода уже закрыт. Текущий пункт не изменён.')
     food = task['type'] in {'wet', 'dry'}
-    planned = not food or stage_for(s, at.date())[task['type']][index] > 0
+    add_food = food and s['config'].get('food_transfer_policy') == 'add_full'
+    planned = not food or add_food or stage_for(s, at.date())[task['type']][index] > 0
     if planned:
         if target is not None:
+            if add_food:
+                add_carried_food(target, {task_id: task['grams']})
             sources = target.setdefault('carried_from', [])
             if task_id not in sources:
                 sources.append(task_id)
@@ -251,14 +282,24 @@ def move_to_next(s, task_id, actor, now, message_id=None, telegram_user_id=None)
                 'checklist': cid, 'type': task['type'], 'due_at': iso(at), 'source_ids': []})
             if task_id not in item['source_ids']:
                 item['source_ids'].append(task_id)
+            if add_food:
+                item.setdefault('food_grams', {}).setdefault(task_id, task['grams'])
     task.update(status='skipped', skip_by=actor, skip_at=iso(now),
                 next_repeat_at=None, snoozed_until=None, needs_clarification=False,
                 skip_reason='next_care', moved_to=key if planned else None,
-                moved_due_at=iso(at), moved_food_without_addition=food)
+                moved_due_at=iso(at), moved_food_without_addition=food and not add_food)
+    extra = {}
+    if add_food:
+        task['moved_food_grams'] = task['grams']
+        extra['food_added_grams'] = task['grams']
     audit(s, 'move_to_next', actor, now, task_id=task_id, target_id=key if planned else None,
-          target_due_at=iso(at), food_without_addition=food,
-          message_id=message_id, telegram_user_id=telegram_user_id)
-    return {'status': 'moved', 'food': food, 'target_id': key if planned else None, 'due_at': iso(at)}
+          target_due_at=iso(at), food_without_addition=food and not add_food,
+          message_id=message_id, telegram_user_id=telegram_user_id, **extra)
+    if add_food:
+        extra.update(type=task['type'],
+                     wet_can_grams=task.get('wet_can_grams', s['config']['wet_can_grams']))
+    return {'status': 'moved', 'food': food,
+            'target_id': key if planned else None, 'due_at': iso(at), **extra}
 
 
 def move_answer(result):
@@ -266,6 +307,10 @@ def move_answer(result):
         return 'Этот пункт уже закрыт. Ничего не перенесено повторно.'
     at = instant(result['due_at'])
     if result['food']:
+        if 'food_added_grams' in result:
+            amount = (wet_amount(result['food_added_grams'], result['wet_can_grams'])
+                      if result['type'] == 'wet' else f'{result["food_added_grams"]} г')
+            return f'Перенесено на {at:%d.%m %H:%M}. К следующей порции добавлено: {amount}.'
         if not result.get('target_id'):
             return 'Порция пропущена. На следующий уход этот корм не запланирован. Добавки не будет.'
         return f'Порция пропущена. Следующее кормление {at:%d.%m %H:%M} по плану, без добавления пропущенной порции.'
@@ -353,6 +398,8 @@ def task_line(task, primary=False):
                 text += f' Следующий уход {target_at:%d.%m %H:%M}, без добавления этой порции.'
             else:
                 text += f' Перенесено на {target_at:%d.%m %H:%M}.'
+                if task.get('moved_food_grams'):
+                    text += ' Весь объём добавлен к следующей порции.'
         return text
     if task.get('needs_clarification'):
         text = f'☐ Нужно уточнить: была ли выдана порция «{short_task(task)}»?'
@@ -363,6 +410,10 @@ def task_line(task, primary=False):
         text = f'☐ Дать {task["grams"]} г сухого корма.' if primary else f'☐ {short_task(task)}.'
     else:
         text = '☐ ' + CLEANING[kind]
+    if task.get('carried_grams'):
+        amount = (wet_amount(task['carried_grams'], task.get('wet_can_grams'))
+                  if kind == 'wet' else f'{task["carried_grams"]} г')
+        text += f' Включая перенос: {amount}.'
     if task['status'] == 'deferred' and task.get('snoozed_until'):
         text += f' Отложено до {instant(task["snoozed_until"]):%d.%m %H:%M}.'
     return text
@@ -699,7 +750,16 @@ def proposal(s, change, actor, now):
     config = copy.deepcopy(s['config'])
     kind = change['kind']
     explanation = []
-    if kind == 'extend_stage':
+    if kind == 'food_transfer':
+        policy = change['policy']
+        if policy not in {'add_full', 'planned_only'}:
+            raise ValueError('Неизвестное правило переноса корма.')
+        config['food_transfer_policy'] = policy
+        explanation.append('После нажатия «К следующему уходу» весь объём корма добавляется к следующей порции того же вида, включая следующий день.'
+                           if policy == 'add_full' else
+                           'После нажатия «К следующему уходу» следующая порция остаётся по плану без добавки.')
+        explanation.append('Новая настройка не меняет выданные порции, прежние пропуски или старые переносы.')
+    elif kind == 'extend_stage':
         days = change['days']
         if not isinstance(days, int) or days <= 0:
             raise ValueError('Укажите положительное целое число дней.')
@@ -766,7 +826,6 @@ def proposal(s, change, actor, now):
                            'created_at': iso(now), 'created_by': actor, 'status': 'pending'}
     audit(s, 'proposal_created', actor, now, proposal=pid)
     return '\n'.join(explanation + [f'Предложение: {pid}. Подтвердите изменение.'])
-
 
 
 def health_hold(s, actor, note, now):

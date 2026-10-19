@@ -54,14 +54,27 @@ The recurring cleaning schedule stays unchanged.
 
 ### Food safety
 
-Do not give the missed portion at the next meal.
-For food, the button skips the current portion and links to the same food kind in the next planned care slot.
-The destination keeps its planned grams. The bot never adds missed grams or creates an extra food portion.
-The button response states that no extra portion will be added.
+Food transfers use the saved `food_transfer_policy` setting.
+The default, `planned_only`, keeps the next portion unchanged and does not add missed food.
+If that food is absent from the next slot, the default policy does not create a food task.
 
-If that food is absent from the next care slot, the source stays skipped and no food task is added.
-The bot does not search later slots for an extra feeding.
-If the diet changes before the destination becomes due, the bot does not recreate food removed from the plan.
+With the owners' confirmation, set `food_transfer_policy` to `add_full` in the care configuration.
+This policy adds the entire transferred amount to the next care task of the same food type, including the next day.
+If that slot has no planned portion, the bot creates a one-time task containing only the carried food.
+The recurring portion plan does not change.
+This setting records an owner instruction. It is not a veterinary recommendation.
+
+The target stores `planned_grams`, `carried_grams`, and the combined `grams` amount.
+Its checklist shows the total and the amount included from transfers.
+The queue stores the exact source amounts in `food_grams`.
+The target stores each applied source amount in `carried_portions`, so repeated application cannot add it twice.
+A chained move carries the source's entire combined amount once, not its ancestors again.
+The button response states the carried amount and destination time.
+
+Old transfers without recorded food amounts keep their original reminder-only meaning.
+Changing the policy does not reinterpret old skips or old transfer records.
+An unconfirmed task does not transfer food automatically.
+A plain skip does not transfer food.
 Cleaning transfers do not change food amounts.
 
 Only the configured numeric caregivers can use these buttons in the configured chat and topic.
