@@ -106,12 +106,15 @@ Set the following environment variables before startup:
 | `TELEGRAM_ALLOWED_USER_IDS` | Comma-separated numeric caregiver IDs. Usernames do not grant access. |
 | `ACORN_CONFIG_PATH` | Protected care JSON file. The default is `config.example.json`. |
 | `ACORN_STATE_PATH` | Persistent record. The default is `/data/state.json`. |
+| `ACORN_FRESH_START` | Set to `1` to start a new state file at the next planned meal. The default is disabled. |
 | `ACORN_HTTP_HOST` | Health server address. The default is `0.0.0.0`. |
 | `ACORN_HTTP_PORT` | Health server port. The default is `8080`. |
 
 A configured token file takes precedence over the token environment variable.
 If the file is missing, the bot refuses startup instead of using another token.
-Never commit tokens, Telegram identifiers, caregiver identifiers, or care records.
+Keep the bot token and care records out of Git.
+You can version nonsecret chat, caregiver, and diet configuration separately from the bot token.
+Restrict access to configuration that contains private identifiers.
 Keep configuration and state mounts readable only by the service account.
 The container uses user and group `10001`.
 
@@ -158,8 +161,30 @@ These commands do not confirm that the kitten ate the issued food.
 A health hold requires veterinary advice before the owners resume the transition plan.
 This version does not infer care reports from free text or offer a command to change the diet.
 
+## Start without old care records
+
+If the owner approves a start without old records, use a new, empty state volume.
+Set `ACORN_FRESH_START=1` before the first startup.
+Do not mount or copy the old care record.
+Do not run the old and new reminder services together. Duplicate reminders can cause a repeated food portion.
+This alternative does not require an import.
+
+The bot saves a cutoff time when it first links the new file to its bot, chat, and topic.
+It creates no checklists with planned times at or before that cutoff.
+The first checklist appears at the next planned meal.
+It does not import old confirmations or queued transfers, or mark earlier tasks as completed or skipped.
+The diet start date, stage dates, portions, and future meal times stay unchanged.
+
+The cutoff survives restarts, even when you remove the flag.
+After downtime, the bot still catches up meals after the original cutoff.
+The flag does not reset an existing volume or add a cutoff to an existing standalone state file.
+It preserves existing tasks, confirmations, and queued transfers.
+An existing care-only state file still requires the explicit import below.
+Without the flag, a new state file catches up meals from the configured diet start date.
+
 ## Import an existing care record
 
+Use this alternative to preserve existing confirmations, queued transfers, and care history.
 Do not start old and new reminder services together. Duplicate reminders can cause a repeated food portion.
 The existing service remains responsible for reminders until an explicit cutover.
 An existing care-only state file cannot become live state through an implicit startup.
@@ -202,6 +227,7 @@ python3 -m unittest discover -s tests -v
 The tests use generated records, fake Telegram requests, and local health servers.
 They cover shared confirmations, stale and future buttons, quiet hours, stage notices, health holds, migration, and uncertain sends.
 Transfer tests cover food safety, queue persistence, merged sources, schedule boundaries, button layouts, and saving records before button responses.
+Fresh-start tests cover cutoff boundaries, clock changes, restart catch-up, and protection of existing records.
 The tests also reject retired names in tracked files and require `Acorn` in the example configuration and messages.
 No test needs a real bot token, Telegram history, or private runtime state.
 
@@ -219,5 +245,6 @@ docker build --tag acorn-care-bot:local .
 ```
 
 The [infra repository](https://github.com/LionZXYOrg/infra) contains the Flux deployment.
-Its initial deployment stays suspended with zero replicas until token delivery and state migration are complete.
+Its initial deployment stays suspended with zero replicas until token delivery and an approved state setup are complete.
+For state setup, use an explicit import or an owner-approved fresh start.
 No production deployment or real Telegram end-to-end test can run before the owner supplies the new token.

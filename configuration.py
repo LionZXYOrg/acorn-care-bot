@@ -80,6 +80,7 @@ class Runtime:
     state_path: Path
     http_host: str = '0.0.0.0'
     http_port: int = 8080
+    fresh_start: bool = False
 
     @classmethod
     def from_env(cls):
@@ -91,7 +92,8 @@ class Runtime:
         return cls(integer(os.environ.get('TELEGRAM_CHAT_ID')),
                    integer(os.environ.get('TELEGRAM_TOPIC_ID'), positive=True), allowed,
                    Path(os.environ.get('ACORN_STATE_PATH', '/data/state.json')),
-                   os.environ.get('ACORN_HTTP_HOST', '0.0.0.0'), port)
+                   os.environ.get('ACORN_HTTP_HOST', '0.0.0.0'), port,
+                   fresh_start=os.environ.get('ACORN_FRESH_START', '0') == '1')
 
 
 def read_token():

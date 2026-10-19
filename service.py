@@ -382,7 +382,8 @@ def main():
     server = None
     try:
         me = identity(client, stop)
-        store.bind(me['id'], runtime.chat_id, runtime.topic_id, care.instant())
+        store.bind(me['id'], runtime.chat_id, runtime.topic_id, care.instant(),
+                   fresh_start=runtime.fresh_start)
         bot = Bot(runtime, client, me['id'], me['username'], store)
         bot.stop = stop
         server = health_server(bot)

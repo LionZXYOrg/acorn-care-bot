@@ -322,11 +322,17 @@ def generate_due(s, now):
     if now.date() < start:
         return []
     previous = instant(s['last_tick']).date() if s.get('last_tick') else start
+    cutoff_value = s.get('standalone', {}).get('fresh_start_cutoff')
+    cutoff = instant(cutoff_value) if cutoff_value is not None else None
     day = max(start, previous)
+    if cutoff is not None:
+        day = max(day, cutoff.date())
     fresh = []
     while day <= now.date():
         for index, slot in enumerate(slots_for_day(s, day)):
-            if wall(day, slot['time']) > now:
+            at = wall(day, slot['time'])
+            # Compare instants, including offsets on either side of a clock change.
+            if at > now or (cutoff is not None and at.timestamp() <= cutoff.timestamp()):
                 continue
             cid = checklist_id(day, slot)
             ensure_checklist(s, day, slot, index)

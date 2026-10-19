@@ -39,7 +39,7 @@ class Store:
         with self.mutex:
             return json.loads(self.path.read_text())
 
-    def bind(self, bot_id, chat_id, topic_id, now):
+    def bind(self, bot_id, chat_id, topic_id, now, *, fresh_start=False):
         """Existing care-only state requires an explicit, offline migration."""
         with self.transaction() as s:
             validate_care_config(s['config'])
@@ -50,6 +50,10 @@ class Store:
                 if self.path.exists():
                     raise ValueError('Existing state requires explicit migration')
                 s['standalone'] = {'schema': 1, 'identity': None, 'offset': 0, 'outbox': {}}
+                if fresh_start:
+                    # Only a new file gets a cutoff. Keep it unchanged on every later bind.
+                    cutoff = care.instant(now.isoformat())
+                    s['standalone']['fresh_start_cutoff'] = cutoff.isoformat()
             meta = s['standalone']
             if meta.get('schema') != 1:
                 raise ValueError('Unsupported standalone state version')
