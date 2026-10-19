@@ -29,6 +29,51 @@ A health hold stops stage changes but keeps care reminders active.
 Unknown delivery outcomes require review instead of an automatic resend.
 A definite Telegram rate-limit response can retry after its delay.
 
+## Move a task to the next care time
+
+Each task row has its completion button on the left and `К следующему уходу` on the right.
+The right button means “move to the next care time.”
+Adding or displaying these buttons does not change tasks, portions, or the recurring schedule.
+The separate test button does not move or complete care tasks.
+
+When you press `К следующему уходу`, the bot marks that source task as skipped now.
+It cancels that task's repeats and snooze.
+The source message shows the skip, caregiver, and next care time.
+This action does not mark the task as completed.
+
+The destination is the next scheduled care time after the press, not after the source task's original time.
+The bot uses confirmed schedule changes and the active diet stage, including a health hold.
+It stores a pending transfer in `carryovers`, a separate queue of one-time reminders.
+It does not create a future checklist when you press the button.
+The checklist still gets its normal first announcement when that care time arrives.
+
+At the destination, the bot merges reminders of the same kind into one task.
+It keeps source task identifiers in `carried_from` and records each move in the audit history.
+A cleaning task can become a one-time lunch task, even when lunch has no routine cleaning.
+The recurring cleaning schedule stays unchanged.
+
+### Food safety
+
+Do not give the missed portion at the next meal.
+For food, the button skips the current portion and links to the same food kind in the next planned care slot.
+The destination keeps its planned grams. The bot never adds missed grams or creates an extra food portion.
+The button response states that no extra portion will be added.
+
+If that food is absent from the next care slot, the source stays skipped and no food task is added.
+The bot does not search later slots for an extra feeding.
+If the diet changes before the destination becomes due, the bot does not recreate food removed from the plan.
+Cleaning transfers do not change food amounts.
+
+Only the configured numeric caregivers can use these buttons in the configured chat and topic.
+Future tasks and forged message bindings cannot change care records.
+A second press cannot move a closed source again or replace its caregiver record.
+If the destination task is already closed, the bot rejects the move and leaves the source unchanged.
+
+The queue uses the destination's date and time as its identifier.
+If an operator changes that time after a transfer, the operator must review the pending queue before migration or deployment.
+This version does not automatically move queued transfers to a replacement schedule time.
+The standalone bot does not offer schedule-change commands.
+
 ## Configuration
 
 Copy `config.example.json` to a protected location outside the checkout.
@@ -127,6 +172,7 @@ The import is an offline step that requires a separate output file.
 9. Test one confirmation with the new bot before ending the cutover.
 
 The import preserves care configuration, history, task states, and caregiver audit records.
+It also preserves queued transfers, source skips, and destination links. A record without a transfer queue needs no care-schema conversion.
 It discards transport state, pending sends, old inline panels, and old bot message bindings.
 It does not send a Telegram message or overwrite an existing output file.
 Keep the original backup until the new service passes the cutover test.
@@ -142,6 +188,7 @@ python3 -m unittest discover -s tests -v
 
 The tests use generated records, fake Telegram requests, and local health servers.
 They cover shared confirmations, stale and future buttons, quiet hours, stage notices, health holds, migration, and uncertain sends.
+Transfer tests cover food safety, queue persistence, merged sources, schedule boundaries, button layouts, and saving records before button responses.
 The tests also reject retired names in tracked files and require `Acorn` in the example configuration and messages.
 No test needs a real bot token, Telegram history, or private runtime state.
 

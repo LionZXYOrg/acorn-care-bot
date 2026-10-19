@@ -146,6 +146,7 @@ def checklist_id(day, slot):
 def ensure_checklist(s, day, slot, index):
     cid = checklist_id(day, slot)
     if cid in s['checklists']:
+        apply_carryovers(s, cid)
         return cid
     stage = stage_for(s, day)
     checklist = {
@@ -174,6 +175,7 @@ def ensure_checklist(s, day, slot, index):
         s['tasks'][tid] = task
         checklist['task_ids'].append(tid)
     s['checklists'][cid] = checklist
+    apply_carryovers(s, cid)
     return cid
 
 
@@ -183,6 +185,91 @@ def slots_for_day(s, day):
     if active:
         return active[-1]['slots']
     return s['config']['slots']
+
+
+def next_care(s, now):
+    """Find the next planned checklist, including a confirmed schedule change."""
+    for offset in range(3):
+        day = now.date() + timedelta(days=offset)
+        if day.isoformat() < s['config']['start_date']:
+            continue
+        candidates = [(wall(day, slot['time']), index, slot)
+                      for index, slot in enumerate(slots_for_day(s, day))
+                      if wall(day, slot['time']) > now]
+        if candidates:
+            at, index, slot = min(candidates, key=lambda item: item[0])
+            return at, index, slot
+    raise ValueError('Следующий уход не найден. Пункт не изменён.')
+
+
+def apply_carryovers(s, cid):
+    """Add one-time cleaning tasks when the target checklist becomes due."""
+    checklist = s['checklists'][cid]
+    queue = s.get('carryovers', {})
+    for key, item in list(queue.items()):
+        if item['checklist'] != cid:
+            continue
+        task = s['tasks'].get(key)
+        if task is None and item['type'] in CLEANING:
+            task = {'id': key, 'checklist': cid, 'type': item['type'], 'grams': None,
+                    'due_at': item['due_at'], 'status': 'pending', 'needs_clarification': False,
+                    'next_repeat_at': None, 'snoozed_until': None,
+                    'done_by': None, 'done_at': None, 'skip_by': None, 'skip_at': None}
+            s['tasks'][key] = task
+            checklist['task_ids'].append(key)
+        # Food remains the planned portion. A diet change must not recreate old food.
+        if task is not None:
+            sources = task.setdefault('carried_from', [])
+            for source in item['source_ids']:
+                if source not in sources:
+                    sources.append(source)
+        del queue[key]
+
+
+def move_to_next(s, task_id, actor, now, message_id=None, telegram_user_id=None):
+    """Skip one open task and carry its reminder to the next care checklist."""
+    task = s['tasks'].get(task_id)
+    if task is None or due(task) > now:
+        raise ValueError('Задача не найдена или её время ещё не наступило. Пункт не изменён.')
+    if task['status'] in CLOSED:
+        return {'status': 'already_closed', 'food': task['type'] in {'wet', 'dry'}}
+    at, index, slot = next_care(s, now)
+    cid = checklist_id(at.date(), slot)
+    key = cid + '_' + task['type']
+    target = s['tasks'].get(key)
+    if target is not None and target['status'] in CLOSED:
+        raise ValueError('Этот пункт следующего ухода уже закрыт. Текущий пункт не изменён.')
+    food = task['type'] in {'wet', 'dry'}
+    planned = not food or stage_for(s, at.date())[task['type']][index] > 0
+    if planned:
+        if target is not None:
+            sources = target.setdefault('carried_from', [])
+            if task_id not in sources:
+                sources.append(task_id)
+        else:
+            item = s.setdefault('carryovers', {}).setdefault(key, {
+                'checklist': cid, 'type': task['type'], 'due_at': iso(at), 'source_ids': []})
+            if task_id not in item['source_ids']:
+                item['source_ids'].append(task_id)
+    task.update(status='skipped', skip_by=actor, skip_at=iso(now),
+                next_repeat_at=None, snoozed_until=None, needs_clarification=False,
+                skip_reason='next_care', moved_to=key if planned else None,
+                moved_due_at=iso(at), moved_food_without_addition=food)
+    audit(s, 'move_to_next', actor, now, task_id=task_id, target_id=key if planned else None,
+          target_due_at=iso(at), food_without_addition=food,
+          message_id=message_id, telegram_user_id=telegram_user_id)
+    return {'status': 'moved', 'food': food, 'target_id': key if planned else None, 'due_at': iso(at)}
+
+
+def move_answer(result):
+    if result['status'] == 'already_closed':
+        return 'Этот пункт уже закрыт. Ничего не перенесено повторно.'
+    at = instant(result['due_at'])
+    if result['food']:
+        if not result.get('target_id'):
+            return 'Порция пропущена. На следующий уход этот корм не запланирован. Добавки не будет.'
+        return f'Порция пропущена. Следующее кормление {at:%d.%m %H:%M} по плану, без добавления пропущенной порции.'
+    return f'Перенесено на {at:%d.%m %H:%M}. Повторы текущего пункта отключены.'
 
 
 def generate_due(s, now):
@@ -197,9 +284,9 @@ def generate_due(s, now):
             if wall(day, slot['time']) > now:
                 continue
             cid = checklist_id(day, slot)
-            existed = cid in s['checklists']
             ensure_checklist(s, day, slot, index)
-            if not existed:
+            # An imported or early-created checklist still needs its first announcement.
+            if s['checklists'][cid].get('announced_at') is None:
                 fresh.append(cid)
         day += timedelta(days=1)
     return fresh
@@ -259,7 +346,14 @@ def task_line(task, primary=False):
         return f'✅ {short_task(task)}: {task["done_by"]}, {stamp:%H:%M}.'
     if task['status'] == 'skipped':
         stamp = instant(task['skip_at'])
-        return f'Пропущено: {short_task(task)} ({task["skip_by"]}, {stamp:%H:%M}).'
+        text = f'Пропущено: {short_task(task)} ({task["skip_by"]}, {stamp:%H:%M}).'
+        if task.get('skip_reason') == 'next_care':
+            target_at = instant(task['moved_due_at'])
+            if task.get('moved_food_without_addition'):
+                text += f' Следующий уход {target_at:%d.%m %H:%M}, без добавления этой порции.'
+            else:
+                text += f' Перенесено на {target_at:%d.%m %H:%M}.'
+        return text
     if task.get('needs_clarification'):
         text = f'☐ Нужно уточнить: была ли выдана порция «{short_task(task)}»?'
     elif kind == 'wet':
