@@ -1,0 +1,159 @@
+# Ekorn care bot
+
+This bot sends shared feeding and cleaning checklists to one Telegram topic.
+It stores each task and caregiver confirmation in one persistent record.
+It runs without ZeroClaw, an AI model, or third-party Python packages.
+The application requires Python 3.12 or later and Linux file locks.
+
+The example plan uses `07:00`, `14:00`, and `19:00` in `Europe/London`.
+Quiet hours run from `23:00` to `07:00`, including seasonal clock changes.
+Wet food uses can fractions. Dry food uses grams.
+The example preserves the owners' original gram amounts and stage dates.
+It is not a veterinary prescription or a permanent allowance for a growing kitten.
+
+## Shared care records
+
+Each button identifies a saved task, not the words on the button.
+The date and time stay in the message, not in the button label.
+The bot accepts only configured numeric caregiver IDs in the configured chat and topic.
+It rejects future tasks and buttons from another bot or an unregistered message.
+It saves a confirmation before it answers the button press.
+A second press does not issue another portion or replace the first caregiver.
+
+Reminders include only tasks that remain open.
+An old feeding becomes a confirmation question when the next meal arrives.
+The bot does not ask caregivers to issue an old portion again or add it to a later portion.
+A health hold stops stage changes but keeps care reminders active.
+Unknown delivery outcomes require review instead of an automatic resend.
+A definite Telegram rate-limit response can retry after its delay.
+
+## Configuration
+
+Copy `config.example.json` to a protected location outside the checkout.
+Set its caregiver mentions and make sure that its portions match the approved plan.
+The application loads that file before it creates care state.
+If a state file exists, the bot preserves its care configuration and confirmations.
+A different timezone requires an explicit migration.
+
+Set the following environment variables before startup:
+
+| Variable | Value |
+| --- | --- |
+| `TELEGRAM_BOT_TOKEN_FILE` | Protected file that contains the new bot token. |
+| `TELEGRAM_BOT_TOKEN` | Alternative token input when no token file is configured. |
+| `TELEGRAM_CHAT_ID` | Numeric Telegram chat ID. |
+| `TELEGRAM_TOPIC_ID` | Numeric topic ID in that chat. |
+| `TELEGRAM_ALLOWED_USER_IDS` | Comma-separated numeric caregiver IDs. Usernames do not grant access. |
+| `EKORN_CONFIG_PATH` | Protected care JSON file. The default is `config.example.json`. |
+| `EKORN_STATE_PATH` | Persistent record. The default is `/data/state.json`. |
+| `EKORN_HTTP_HOST` | Health server address. The default is `0.0.0.0`. |
+| `EKORN_HTTP_PORT` | Health server port. The default is `8080`. |
+
+A configured token file takes precedence over the token environment variable.
+If the file is missing, the bot refuses startup instead of using another token.
+Never commit tokens, Telegram identifiers, caregiver identifiers, or care records.
+Keep configuration and state mounts readable only by the service account.
+The container uses user and group `10001`.
+
+## Start the service
+
+Use a new bot token. Do not reuse the assistant token.
+Give the new bot access to the target group and topic.
+Configure its numeric caregiver IDs before startup.
+The service refuses an existing webhook instead of deleting it.
+A competing Telegram poller stops this service.
+
+After setting the environment variables and mounting persistent storage, run:
+
+```bash
+python3 service.py
+```
+
+The service starts one Telegram polling loop and one reminder worker.
+A process lock rejects a second writer to the same state file.
+The bot persists the Telegram update offset with each processed change.
+`/livez` reports process health. `/readyz` requires a recent poll and a recent reminder check.
+The endpoints return no task, identity, configuration, or secret details.
+Do not expose them through a public route.
+
+## Caregiver commands
+
+Use inline buttons for ordinary confirmations.
+For an open-task summary, send `/status` in the configured topic.
+For one exact task, use these commands:
+
+```text
+/done 2026-10-20_07:00_wet
+/skip 2026-10-20_07:00_bowls
+/snooze 2026-10-20_07:00_water 30
+/health_hold Appetite or stool problem. Stage changes need review.
+```
+
+A task identifier contains its date, meal time, and type.
+The types are `wet`, `dry`, `litter`, `bowls`, and `water`.
+Snoozes accept `30` or `60` minutes.
+The bot does not treat an ambiguous “done” as completion of every task.
+It accepts old text-button labels only when they match one stored task exactly.
+These commands do not confirm that the kitten ate the issued food.
+A health hold requires veterinary advice before the owners resume the transition plan.
+This version does not infer care reports from free text or offer a command to change the diet.
+
+## Import an existing care record
+
+Do not start old and new reminder services together. Duplicate reminders can cause a repeated food portion.
+The existing service remains responsible for reminders until an explicit cutover.
+An existing care-only state file cannot become live state through an implicit startup.
+The import is an offline step that requires a separate output file.
+
+1. Stop the old care scheduler before exporting its record.
+2. Stop any other process that can update that record during the cutover.
+3. Copy the record to a protected location outside all Git checkouts.
+4. Make sure that the configuration uses the source record's timezone.
+5. Run the import with the numeric ID of the operator:
+
+   ```bash
+   python3 migrate.py \
+     --source /protected/old-state.json \
+     --output /protected/imported-state.json \
+     --operator-id NUMERIC_OPERATOR_ID \
+     --confirm-old-scheduler-stopped
+   ```
+
+6. Review the imported task states, pending schedule changes, health hold, and caregiver provenance.
+7. Mount the imported file at `EKORN_STATE_PATH` with owner `10001:10001`.
+8. Start the new service and make sure that `/readyz` succeeds.
+9. Test one confirmation with the new bot before ending the cutover.
+
+The import preserves care configuration, history, task states, and caregiver audit records.
+It discards transport state, pending sends, old inline panels, and old bot message bindings.
+It does not send a Telegram message or overwrite an existing output file.
+Keep the original backup until the new service passes the cutover test.
+If the new service is not ready, keep it stopped before resuming the old service.
+
+## Tests and image publication
+
+Run the offline tests from this directory:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The tests use generated records, fake Telegram requests, and local health servers.
+They cover shared confirmations, stale and future buttons, quiet hours, stage notices, health holds, migration, and uncertain sends.
+No test needs a real bot token, Telegram history, or private runtime state.
+
+GitHub Actions runs the tests on Python 3.12 and 3.13.
+On `main`, it publishes `linux/amd64` and `linux/arm64` images to GitHub Container Registry (GHCR).
+Each image has a `sha-COMMIT` tag and a moving `main` tag.
+Deployment manifests must use the tested commit tag or image digest, not the moving tag.
+The private package requires a registry credential with `read:packages` permission.
+The workflow uses its short-lived `GITHUB_TOKEN` to publish images.
+A local container build needs Docker:
+
+```bash
+docker build --tag ekorn-care-bot:local .
+```
+
+The [infra repository](https://github.com/LionZXYOrg/infra) contains the Flux deployment.
+Its initial deployment stays suspended with zero replicas until token delivery and state migration are complete.
+No production deployment or real Telegram end-to-end test can run before the owner supplies the new token.

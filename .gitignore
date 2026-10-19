@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.test-tmp/
+.venv/
+.env
+.env.*
+*.json
+!config.example.json
+*.lock
+*.log
+*.key
+*.pem
+*.agekey
+data/
+secrets/

@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "name": "Экорн",
+  "timezone": "Europe/London",
+  "start_date": "2026-10-19",
+  "repeat_minutes": 30,
+  "quiet_start": "23:00",
+  "quiet_end": "07:00",
+  "wet_product": "Royal Canin Gastrointestinal Kitten",
+  "wet_can_grams": 195,
+  "dry_product": "Royal Canin Gastrointestinal Kitten",
+  "slots": [
+    {
+      "key": "breakfast",
+      "time": "07:00",
+      "label": "Завтрак и утренняя уборка",
+      "cleaning": true
+    },
+    {
+      "key": "lunch",
+      "time": "14:00",
+      "label": "Обед",
+      "cleaning": false
+    },
+    {
+      "key": "dinner",
+      "time": "19:00",
+      "label": "Ужин и вечерняя уборка",
+      "cleaning": true,
+      "cleaning_tasks": [
+        "litter",
+        "bowls"
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "id": "weeks_1_2",
+      "start": "2026-10-19",
+      "label": "Недели 1–2",
+      "wet": [
+        49,
+        49,
+        97
+      ],
+      "dry": [
+        10,
+        10,
+        10
+      ],
+      "daily_wet": 195,
+      "daily_dry": 30
+    },
+    {
+      "id": "week_3",
+      "start": "2026-11-02",
+      "label": "Неделя 3",
+      "wet": [
+        33,
+        32,
+        65
+      ],
+      "dry": [
+        15,
+        15,
+        16
+      ],
+      "daily_wet": 130,
+      "daily_dry": 46
+    },
+    {
+      "id": "week_4",
+      "start": "2026-11-09",
+      "label": "Неделя 4",
+      "wet": [
+        0,
+        0,
+        65
+      ],
+      "dry": [
+        21,
+        20,
+        21
+      ],
+      "daily_wet": 65,
+      "daily_dry": 62
+    },
+    {
+      "id": "week_5_plus",
+      "start": "2026-11-16",
+      "label": "С недели 5",
+      "wet": [
+        0,
+        0,
+        0
+      ],
+      "dry": [
+        26,
+        26,
+        26
+      ],
+      "daily_wet": 0,
+      "daily_dry": 78,
+      "provisional": true
+    }
+  ],
+  "dry_amounts_are_full_daily_totals": true,
+  "portion_note": "Порции взяты из вашего плана перехода. Это не индивидуальное ветеринарное назначение и не постоянная норма для растущего котёнка.",
+  "mention": "Caregivers"
+}

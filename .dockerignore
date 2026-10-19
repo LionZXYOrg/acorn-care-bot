@@ -1,0 +1,10 @@
+**
+!Dockerfile
+!care.py
+!configuration.py
+!inline_ui.py
+!migrate.py
+!service.py
+!storage.py
+!telegram_api.py
+!config.example.json
