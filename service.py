@@ -194,6 +194,16 @@ class Bot:
             job = state['standalone']['outbox'][key]
             if job['status'] != 'pending':
                 return
+            if job.get('panel') and not state['config'].get('automatic_repeats', True):
+                item = state['emissions'].get(job.get('emission'))
+                if item:
+                    automatic = set(item['repeat_ids']) - set(item.get('manual_repeat_ids', []))
+                    pure_automatic = (automatic and not item['primary']
+                                      and not item.get('manual_repeat_ids') and not item['notices'])
+                    if pure_automatic or (automatic and job['message_ids']):
+                        job['status'] = 'suppressed' if pure_automatic else 'needs_review'
+                        state['inline_panels'][job['panel']]['status'] = job['status']
+                        return
             if job.get('panel') and not job['message_ids']:
                 text = care.refresh(state, job['emission'], now)
                 if text == 'NO_REPLY':

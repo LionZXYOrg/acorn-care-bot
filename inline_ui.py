@@ -106,6 +106,12 @@ def page_text(state, panel, page):
             lines[index] = ('✅ Всё выполнено. Спасибо!' if all_done else
                             'Список закрыт. Выполненные и пропущенные пункты указаны отдельно.'
                             if closed else line)
+        elif (not state['config'].get('automatic_repeats', True)
+              and (line.startswith('⏰ Через ') or line.startswith('⏰ Напомню только')
+                   or line == 'Автоматические повторы выключены.')):
+            lines[index] = '' if closed else 'Автоматические повторы выключены.'
+        elif closed and line == 'Автоматические повторы выключены.':
+            lines[index] = ''
         elif line.startswith('⏰ Через '):
             lines[index] = '' if closed else '⏰ Напомню только о неотмеченных пунктах.'
         elif closed and line.startswith('⏰ Напомню только'):

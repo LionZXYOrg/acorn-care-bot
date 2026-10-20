@@ -95,6 +95,15 @@ The application loads that file before it creates care state.
 If a state file exists, the bot preserves its care configuration and confirmations.
 A different timezone requires an explicit migration.
 
+To keep scheduled checklists without automatic repeats, set `automatic_repeats` to `false` in the care configuration.
+The default is `true`.
+The bot applies an explicitly configured value at each startup, including when a state file already exists.
+This reload changes only the repeat setting, not the saved portions, meal times, confirmations, holds, or transfers.
+Open tasks stay open and their buttons still work.
+An explicit snooze still sends one reminder at the requested time.
+It does not restart automatic repeats.
+Queued automatic repeat messages are suppressed before delivery.
+
 Set the following environment variables before startup:
 
 | Variable | Value |

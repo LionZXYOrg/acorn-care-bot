@@ -466,7 +466,9 @@ def emission_task_ids(s, emission_id):
         return []
     keys = list(s['checklists'][item['primary']]['task_ids']) if item['primary'] else []
     repeats = [s['tasks'][key] for key in item['repeat_ids']
-               if s['tasks'][key]['status'] not in CLOSED | {'deferred'}]
+               if s['tasks'][key]['status'] not in CLOSED | {'deferred'}
+               and (s['config'].get('automatic_repeats', True)
+                    or key in item.get('manual_repeat_ids', []))]
     shown = sorted({task['checklist'] for task in repeats})[-6:]
     keys.extend(task['id'] for task in repeats if task['checklist'] in shown)
     return list(dict.fromkeys(keys))
@@ -557,7 +559,9 @@ def render_checklist(s, cid, updated=False):
         lines.append('Список закрыт. Выполненные и пропущенные пункты указаны отдельно.')
     else:
         lines.append('✅ Отмечайте выполненное')
-        if updated or any(task['status'] == 'deferred' for task in tasks):
+        if not s['config'].get('automatic_repeats', True):
+            lines.append('Автоматические повторы выключены.')
+        elif updated or any(task['status'] == 'deferred' for task in tasks):
             lines.append('⏰ Напомню только о неотмеченных пунктах.')
         else:
             minutes = s['config']['repeat_minutes']
@@ -614,8 +618,10 @@ def tick(s, now):
     s['current_stage'] = stage_for(s, now.date())['id']
     s['last_tick'] = iso(now)
     all_open = unresolved(s)
+    manual_repeats = set()
     for task in all_open:
         if task['status'] == 'deferred' and instant(task['snoozed_until']) <= now:
+            manual_repeats.add(task['id'])
             task['status'] = 'needs_clarification' if task['needs_clarification'] else 'pending'
             task['snoozed_until'] = None
     eligible = [task for task in all_open if task['status'] != 'deferred']
@@ -632,6 +638,8 @@ def tick(s, now):
         checklist = s['checklists'][task['checklist']]
         if task['checklist'] == primary:
             continue
+        if not config.get('automatic_repeats', True) and task['id'] not in manual_repeats:
+            continue
         next_at = instant(task['next_repeat_at']) if task.get('next_repeat_at') else due(task)
         if next_at <= now:
             repeated.append(task)
@@ -639,6 +647,9 @@ def tick(s, now):
         blocks.append(render_reminders(s, repeated, morning=morning))
     emitted = repeated + [task for task in eligible if task['checklist'] == primary]
     for task in emitted:
+        if not config.get('automatic_repeats', True):
+            task['next_repeat_at'] = None
+            continue
         next_at = instant(task['next_repeat_at']) if task.get('next_repeat_at') else due(task)
         while next_at <= now:
             next_at = plus_minutes(next_at, config['repeat_minutes'])
@@ -662,6 +673,7 @@ def tick(s, now):
     s.setdefault('emissions', {})[eid] = {
         'id': eid, 'at': iso(now), 'primary': primary,
         'repeat_ids': [t['id'] for t in repeated], 'morning': morning,
+        'manual_repeat_ids': [t['id'] for t in repeated if t['id'] in manual_repeats],
         'notices': extra_notices,
     }
     s['last_emission_id'] = eid
@@ -687,7 +699,9 @@ def refresh(s, emission_id, now):
     if has_primary:
         blocks.append(render_checklist(s, item['primary']))
     tasks = [s['tasks'][key] for key in item['repeat_ids']
-             if s['tasks'][key]['status'] not in CLOSED | {'deferred'}]
+             if s['tasks'][key]['status'] not in CLOSED | {'deferred'}
+             and (s['config'].get('automatic_repeats', True)
+                  or key in item.get('manual_repeat_ids', []))]
     if tasks:
         blocks.append(render_reminders(s, tasks, morning=item['morning']))
     blocks.extend(item['notices'])

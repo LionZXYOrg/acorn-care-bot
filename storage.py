@@ -68,6 +68,12 @@ class Store:
                     job['status'] = 'needs_review'
                     if job.get('panel'):
                         s['inline_panels'][job['panel']]['status'] = 'needs_review'
+            # Only the repeat toggle is reloadable. Preserve the saved care plan.
+            if 'automatic_repeats' in care.BOOT_CONFIG:
+                enabled = care.BOOT_CONFIG['automatic_repeats']
+                if s['config'].get('automatic_repeats', True) != enabled:
+                    s['config']['automatic_repeats'] = enabled
+                    care.audit(s, 'automatic_repeats_changed', 'configuration', now, enabled=enabled)
             care.audit(s, 'standalone_started', 'service', now, bot_id=bot_id)
 
     def offset(self):
