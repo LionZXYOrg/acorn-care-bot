@@ -1,0 +1,50 @@
+# This chart contains no deployment-specific routes, users, or application configuration.
+replicas: 0
+fullnameOverride: ""
+# Pin an immutable tag or digest in deployment values. Workers can override this image.
+image: ghcr.io/lionzxyorg/acorn-care-bot:main
+imagePullPolicy: IfNotPresent
+gateway:
+  tokenSecret:
+    name: telegram-bot-token
+    key: bot-token
+  persistence:
+    existingClaim: ""
+    size: 128Mi
+    # null uses the cluster default. "" explicitly selects no storage class.
+    storageClassName: null
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+legacyAcorn:
+  # Empty disables migration. Otherwise use the id of an entry in workers.
+  workerId: ""
+# Every entry requires id, uid, route, and command. See README.md for an example.
+# Worker contract:
+# - id: example
+#   uid: 11001
+#   image: registry.example/worker@sha256:<digest>  # optional, inherits image
+#   command: [python3, /app/example.py]
+#   route:
+#     chat_id: -1000000000001
+#     topic_id: 1
+#     receives_updates: false
+#     allowed_user_ids: []
+#     methods: [getMe, sendMessage]
+#   env: {}                 # plain string values only, no envFrom
+#   config: {}              # string file contents, mounted at /etc/worker
+#   persistence:
+#     existingClaim: ""     # set to reuse a claim without creating or adopting it
+#     size: 128Mi
+#     storageClassName: null
+#   secretMounts: []         # [{secretName: example, mountPath: /etc/example, items: [{key: file, path: file}]}]
+#   resources: {}            # Kubernetes resource requests/limits
+#   ports: []               # [{name: example-health, containerPort: 8080}]
+#   startupProbe: {}         # Kubernetes exec/httpGet/tcpSocket probe
+#   livenessProbe: {}
+#   readinessProbe: {}
+workers: []

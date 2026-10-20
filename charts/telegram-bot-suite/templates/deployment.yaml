@@ -1,0 +1,227 @@
+{{- include "suite.validate" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "suite.name" . | quote }}
+  labels:
+    {{- include "suite.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "suite.labels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "suite.labels" . | nindent 8 }}
+      annotations:
+        checksum/configuration: {{ include (print $.Template.BasePath "/configmaps.yaml") . | sha256sum }}
+        checksum/registry: {{ include "suite.registry" . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      shareProcessNamespace: false
+      terminationGracePeriodSeconds: 75
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      {{- if .Values.legacyAcorn.workerId }}
+      initContainers:
+        {{- range $index, $worker := .Values.workers }}
+        {{- if eq .id $.Values.legacyAcorn.workerId }}
+        - name: seed-gateway
+          image: {{ $.Values.image | quote }}
+          imagePullPolicy: {{ $.Values.imagePullPolicy }}
+          command: [python3, /app/gateway_seed.py]
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: TELEGRAM_CHAT_ID
+              value: {{ printf "%.0f" (float64 .route.chat_id) | quote }}
+            - name: TELEGRAM_TOPIC_ID
+              value: {{ printf "%.0f" (float64 .route.topic_id) | quote }}
+            - name: GATEWAY_STATE_PATH
+              value: /gateway/private/state.sqlite3
+            - name: GATEWAY_LEGACY_PATH
+              value: /gateway/legacy.json
+          securityContext:
+            {{- include "suite.security" .uid | nindent 12 }}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 250m, memory: 128Mi}
+          volumeMounts:
+            - name: worker-{{ $index }}-state
+              mountPath: /legacy
+              readOnly: true
+            - name: gateway-state
+              mountPath: /gateway
+        {{- end }}
+        {{- end }}
+      {{- end }}
+      containers:
+        {{- range $index, $worker := .Values.workers }}
+        - name: {{ .id }}
+          image: {{ .image | default $.Values.image | quote }}
+          imagePullPolicy: {{ $.Values.imagePullPolicy }}
+          command: {{ .command | toJson }}
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: TELEGRAM_GATEWAY_SOCKET
+              value: /run/telegram/private/api.sock
+            - name: TELEGRAM_CHAT_ID
+              value: {{ printf "%.0f" (float64 .route.chat_id) | quote }}
+            - name: TELEGRAM_TOPIC_ID
+              value: {{ printf "%.0f" (float64 .route.topic_id) | quote }}
+            - name: TELEGRAM_ALLOWED_USER_IDS
+              value: {{ include "suite.allowedUsers" .route.allowed_user_ids | quote }}
+            {{- range $name, $value := .env }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- with .ports }}
+          ports:
+            {{- range . }}
+            - name: {{ .name }}
+              containerPort: {{ .containerPort }}
+              protocol: TCP
+            {{- end }}
+          {{- end }}
+          {{- with .startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- include "suite.security" .uid | nindent 12 }}
+          resources:
+            {{- .resources | default (dict "requests" (dict "cpu" "10m" "memory" "32Mi") "limits" (dict "cpu" "250m" "memory" "128Mi")) | toYaml | nindent 12 }}
+          volumeMounts:
+            - name: worker-{{ $index }}-state
+              mountPath: /data
+            - name: worker-{{ $index }}-configuration
+              mountPath: /etc/worker
+              readOnly: true
+            - name: worker-{{ $index }}-socket
+              mountPath: /run/telegram
+              readOnly: true
+            - name: worker-{{ $index }}-tmp
+              mountPath: /tmp
+            {{- range $secretIndex, $secret := .secretMounts }}
+            - name: worker-{{ $index }}-secret-{{ $secretIndex }}
+              mountPath: {{ .mountPath | quote }}
+              readOnly: true
+            {{- end }}
+        {{- end }}
+        - name: gateway
+          image: {{ .Values.image | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          command: [python3, /app/gateway.py]
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: TELEGRAM_BOT_TOKEN_FILE
+              value: /var/run/telegram/token
+            - name: GATEWAY_CONFIG_PATH
+              value: /etc/gateway/registry.json
+            - name: GATEWAY_STATE_PATH
+              value: /gateway/private/state.sqlite3
+            - name: GATEWAY_HTTP_PORT
+              value: "8081"
+            - name: GATEWAY_LEGACY_PATH
+              value: /gateway/legacy.json
+          ports:
+            - name: gateway-health
+              containerPort: 8081
+              protocol: TCP
+          startupProbe:
+            httpGet: {path: /livez, port: gateway-health}
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet: {path: /livez, port: gateway-health}
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /readyz, port: gateway-health}
+            periodSeconds: 10
+          securityContext:
+            {{- include "suite.security" 10003 | nindent 12 }}
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+          volumeMounts:
+            - name: gateway-state
+              mountPath: /gateway
+            - name: telegram-token
+              mountPath: /var/run/telegram
+              readOnly: true
+            - name: gateway-registry
+              mountPath: /etc/gateway
+              readOnly: true
+            {{- range $index, $worker := .Values.workers }}
+            - name: worker-{{ $index }}-socket
+              mountPath: /run/workers/{{ .id }}
+            {{- end }}
+            - name: gateway-tmp
+              mountPath: /tmp
+      volumes:
+        - name: gateway-state
+          persistentVolumeClaim:
+            claimName: {{ include "suite.claim" (dict "root" . "id" "gateway" "persistence" .Values.gateway.persistence) | quote }}
+        - name: telegram-token
+          secret:
+            secretName: {{ .Values.gateway.tokenSecret.name | quote }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.gateway.tokenSecret.key | quote }}
+                path: token
+        - name: gateway-registry
+          configMap:
+            name: {{ include "suite.name" . }}-registry
+            defaultMode: 0444
+            items:
+              - key: registry.json
+                path: registry.json
+        - name: gateway-tmp
+          emptyDir:
+            sizeLimit: 16Mi
+        {{- range $index, $worker := .Values.workers }}
+        - name: worker-{{ $index }}-state
+          persistentVolumeClaim:
+            claimName: {{ include "suite.claim" (dict "root" $ "id" .id "persistence" .persistence) | quote }}
+        - name: worker-{{ $index }}-configuration
+          configMap:
+            name: {{ include "suite.name" $ }}-{{ .id }}-config
+            defaultMode: 0444
+        - name: worker-{{ $index }}-socket
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
+        - name: worker-{{ $index }}-tmp
+          emptyDir:
+            sizeLimit: 16Mi
+        {{- range $secretIndex, $secret := .secretMounts }}
+        - name: worker-{{ $index }}-secret-{{ $secretIndex }}
+          secret:
+            secretName: {{ .secretName | quote }}
+            defaultMode: 0440
+            items:
+              {{- toYaml .items | nindent 14 }}
+        {{- end }}
+        {{- end }}

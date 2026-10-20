@@ -13,3 +13,6 @@ __pycache__/
 *.agekey
 data/
 secrets/
+
+# Helm uses this public schema to validate deployment values.
+!charts/telegram-bot-suite/values.schema.json

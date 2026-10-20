@@ -1,0 +1,5 @@
+apiVersion: v2
+name: telegram-bot-suite
+description: Isolated workers with a single Telegram token gateway
+type: application
+version: 0.1.0

@@ -2,6 +2,7 @@ FROM python:3.13-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
     ACORN_CONFIG_PATH=/app/config.example.json \
     ACORN_STATE_PATH=/data/state.json
 
@@ -15,6 +16,7 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY --chown=10001:10001 care.py configuration.py inline_ui.py migrate.py service.py storage.py telegram_api.py gateway.py gateway_client.py gateway_seed.py config.example.json ./
+COPY --chown=10001:10001 greenwich/ ./greenwich/
 USER 10001:10001
 EXPOSE 8080
 STOPSIGNAL SIGTERM

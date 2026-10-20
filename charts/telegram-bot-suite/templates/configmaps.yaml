@@ -1,0 +1,20 @@
+{{- include "suite.validate" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "suite.name" . }}-registry
+  labels:
+    {{- include "suite.labels" . | nindent 4 }}
+data:
+  registry.json: |
+    {{- include "suite.registry" . | nindent 4 }}
+{{- range .Values.workers }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "suite.name" $ }}-{{ .id }}-config
+  labels:
+    {{- include "suite.labels" $ | nindent 4 }}
+data: {{ .config | default dict | toJson }}
+{{- end }}

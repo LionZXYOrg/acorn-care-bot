@@ -1,0 +1,783 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "replicas": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "maxLength": 40,
+      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "image": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S+$"
+    },
+    "imagePullPolicy": {
+      "enum": [
+        "Always",
+        "IfNotPresent",
+        "Never"
+      ]
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tokenSecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 253,
+              "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 253,
+              "pattern": "^[A-Za-z0-9_][-A-Za-z0-9_.]*$"
+            }
+          },
+          "required": [
+            "name",
+            "key"
+          ]
+        },
+        "persistence": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "existingClaim": {
+              "type": "string",
+              "maxLength": 253,
+              "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+            },
+            "size": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[0-9]+(\\.[0-9]+)?([EPTGMK]i?|[eE][+-]?[0-9]+|[mun])?$"
+            },
+            "storageClassName": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 253
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[0-9]+(\\.[0-9]+)?([EPTGMK]i?|[eE][+-]?[0-9]+|[mun])?$"
+              },
+              "propertyNames": {
+                "enum": [
+                  "cpu",
+                  "memory",
+                  "ephemeral-storage"
+                ]
+              }
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[0-9]+(\\.[0-9]+)?([EPTGMK]i?|[eE][+-]?[0-9]+|[mun])?$"
+              },
+              "propertyNames": {
+                "enum": [
+                  "cpu",
+                  "memory",
+                  "ephemeral-storage"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "required": [
+        "tokenSecret",
+        "persistence",
+        "resources"
+      ]
+    },
+    "legacyAcorn": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workerId": {
+          "type": "string",
+          "maxLength": 32,
+          "enum": [
+            "",
+            "acorn"
+          ]
+        }
+      },
+      "required": [
+        "workerId"
+      ]
+    },
+    "workers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+          },
+          "uid": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967294
+          },
+          "image": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S+$"
+          },
+          "command": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "route": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "chat_id": {
+                "type": "integer",
+                "minimum": -4503599627370495,
+                "maximum": 4503599627370495,
+                "not": {
+                  "const": 0
+                }
+              },
+              "topic_id": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4503599627370495
+              },
+              "receives_updates": {
+                "type": "boolean"
+              },
+              "allowed_user_ids": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4503599627370495
+                },
+                "uniqueItems": true,
+                "maxItems": 1000
+              },
+              "methods": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "getMe",
+                    "getWebhookInfo",
+                    "getChatMember",
+                    "getUpdates",
+                    "sendMessage",
+                    "sendRichMessage",
+                    "editMessageText",
+                    "editMessageReplyMarkup",
+                    "pinChatMessage",
+                    "unpinChatMessage",
+                    "deleteMessage",
+                    "answerCallbackQuery"
+                  ]
+                },
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "chat_id",
+              "topic_id",
+              "receives_updates",
+              "allowed_user_ids",
+              "methods"
+            ]
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "pattern": "^[A-Za-z0-9_-][A-Za-z0-9_.-]*$",
+              "maxLength": 253
+            }
+          },
+          "persistence": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "existingClaim": {
+                "type": "string",
+                "maxLength": 253,
+                "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+              },
+              "size": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[0-9]+(\\.[0-9]+)?([EPTGMK]i?|[eE][+-]?[0-9]+|[mun])?$"
+              },
+              "storageClassName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 253
+              }
+            }
+          },
+          "secretMounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "secretName": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 253,
+                  "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+                },
+                "mountPath": {
+                  "type": "string",
+                  "pattern": "^/[^\\s]*$"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 253,
+                        "pattern": "^[A-Za-z0-9_][-A-Za-z0-9_.]*$"
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-][A-Za-z0-9_.-]*$"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "path"
+                    ]
+                  },
+                  "minItems": 1
+                }
+              },
+              "required": [
+                "secretName",
+                "mountPath",
+                "items"
+              ]
+            }
+          },
+          "resources": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "requests": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[0-9]+(\\.[0-9]+)?([EPTGMK]i?|[eE][+-]?[0-9]+|[mun])?$"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "cpu",
+                    "memory",
+                    "ephemeral-storage"
+                  ]
+                }
+              },
+              "limits": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[0-9]+(\\.[0-9]+)?([EPTGMK]i?|[eE][+-]?[0-9]+|[mun])?$"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "cpu",
+                    "memory",
+                    "ephemeral-storage"
+                  ]
+                }
+              }
+            }
+          },
+          "ports": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 15,
+                  "pattern": "^[a-z]([a-z0-9-]*[a-z0-9])?$"
+                },
+                "containerPort": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 65535
+                }
+              },
+              "required": [
+                "name",
+                "containerPort"
+              ]
+            }
+          },
+          "startupProbe": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "exec": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "command": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "command"
+                ]
+              },
+              "httpGet": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^/"
+                  },
+                  "port": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 15,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      }
+                    ]
+                  },
+                  "scheme": {
+                    "enum": [
+                      "HTTP",
+                      "HTTPS"
+                    ]
+                  }
+                },
+                "required": [
+                  "path",
+                  "port"
+                ]
+              },
+              "tcpSocket": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "port": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 15,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "port"
+                ]
+              },
+              "initialDelaySeconds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600
+              },
+              "periodSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600
+              },
+              "timeoutSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600
+              },
+              "successThreshold": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "failureThreshold": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "terminationGracePeriodSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "exec"
+                ]
+              },
+              {
+                "required": [
+                  "httpGet"
+                ]
+              },
+              {
+                "required": [
+                  "tcpSocket"
+                ]
+              }
+            ]
+          },
+          "livenessProbe": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "exec": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "command": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "command"
+                ]
+              },
+              "httpGet": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^/"
+                  },
+                  "port": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 15,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      }
+                    ]
+                  },
+                  "scheme": {
+                    "enum": [
+                      "HTTP",
+                      "HTTPS"
+                    ]
+                  }
+                },
+                "required": [
+                  "path",
+                  "port"
+                ]
+              },
+              "tcpSocket": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "port": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 15,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "port"
+                ]
+              },
+              "initialDelaySeconds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600
+              },
+              "periodSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600
+              },
+              "timeoutSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600
+              },
+              "successThreshold": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "failureThreshold": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "terminationGracePeriodSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "exec"
+                ]
+              },
+              {
+                "required": [
+                  "httpGet"
+                ]
+              },
+              {
+                "required": [
+                  "tcpSocket"
+                ]
+              }
+            ]
+          },
+          "readinessProbe": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "exec": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "command": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "command"
+                ]
+              },
+              "httpGet": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^/"
+                  },
+                  "port": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 15,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      }
+                    ]
+                  },
+                  "scheme": {
+                    "enum": [
+                      "HTTP",
+                      "HTTPS"
+                    ]
+                  }
+                },
+                "required": [
+                  "path",
+                  "port"
+                ]
+              },
+              "tcpSocket": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "port": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 15,
+                        "pattern": "^[a-z][a-z0-9-]*$"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "port"
+                ]
+              },
+              "initialDelaySeconds": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600
+              },
+              "periodSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600
+              },
+              "timeoutSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600
+              },
+              "successThreshold": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "failureThreshold": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "terminationGracePeriodSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3600
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "exec"
+                ]
+              },
+              {
+                "required": [
+                  "httpGet"
+                ]
+              },
+              {
+                "required": [
+                  "tcpSocket"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "uid",
+          "command",
+          "route"
+        ]
+      },
+      "maxItems": 16
+    }
+  },
+  "required": [
+    "replicas",
+    "image",
+    "imagePullPolicy",
+    "gateway",
+    "legacyAcorn",
+    "workers"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Telegram bot suite values"
+}

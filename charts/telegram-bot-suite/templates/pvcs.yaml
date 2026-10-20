@@ -1,0 +1,27 @@
+{{- $entries := list (dict "id" "gateway" "persistence" .Values.gateway.persistence) -}}
+{{- range .Values.workers -}}
+{{- $entries = append $entries (dict "id" .id "persistence" (.persistence | default dict)) -}}
+{{- end -}}
+{{- range $entries -}}
+{{- $p := .persistence -}}
+{{- if not $p.existingClaim }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "suite.claim" (dict "root" $ "id" .id "persistence" $p) }}
+  labels:
+    {{- include "suite.labels" $ | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if and (hasKey $p "storageClassName") (ne $p.storageClassName nil) }}
+  storageClassName: {{ $p.storageClassName | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $p.size | default "128Mi" | quote }}
+{{- end }}
+{{- end }}

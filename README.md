@@ -253,6 +253,8 @@ If the new service is not ready, keep it stopped before resuming the old service
 Run the offline tests from this directory:
 
 ```bash
+python3 -m pip install PyYAML==6.0.3
+# Install Helm 3.19.5 before chart tests.
 python3 -m unittest discover -s tests -v
 ```
 
@@ -264,6 +266,8 @@ The tests also reject retired names in tracked files and require `Acorn` in the 
 No test needs a real bot token, Telegram history, or private runtime state.
 
 GitHub Actions runs the tests on Python 3.12 and 3.13.
+It also renders, validates, and packages the Helm chart.
+Greenwich code and its offline regression tests live in this repository, not in infra.
 On `main`, it publishes `linux/amd64` and `linux/arm64` images to GitHub Container Registry (GHCR).
 The image name is `ghcr.io/lionzxyorg/acorn-care-bot`.
 Each image has a `sha-COMMIT` tag and a moving `main` tag.
@@ -310,7 +314,9 @@ The gateway binds this snapshot to the same bot, chat, and topic.
 Later restarts use the gateway database and do not accept new worker-authored ownership imports.
 Care state, health holds, portion history, and pending transfers remain on Acorn's existing volume.
 
-The [infra suite](https://github.com/LionZXYOrg/infra/tree/master/apps/telegram-bot-suite) defines the container and volume boundaries.
+The [Helm chart](charts/telegram-bot-suite) defines the container and volume boundaries.
+The [operating procedure](docs/shared-suite.md) covers preparation, cutover, rollback, and bin-state migration.
+The [infra suite](https://github.com/LionZXYOrg/infra/tree/master/apps/telegram-bot-suite) contains only cluster-specific Flux resources and values.
 The preparation keeps the new suite suspended with zero replicas until a coordinated cutover.
 Containers share the pod network and host kernel. They are not separate virtual machines.
 The gateway and node administrator remain trusted because the gateway can use the shared token.

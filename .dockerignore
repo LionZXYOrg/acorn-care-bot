@@ -11,3 +11,10 @@
 !gateway.py
 !gateway_client.py
 !gateway_seed.py
+!greenwich/
+greenwich/*
+!greenwich/bot.py
+!greenwich/council.py
+!greenwich/migrate_storage.py
+!greenwich/runner.py
+!greenwich/storage.py

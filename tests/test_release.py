@@ -3,7 +3,10 @@ import copy
 import json
 from pathlib import Path
 import re
+import shutil
 import subprocess
+import sys
+import tempfile
 import unittest
 
 import care
@@ -54,6 +57,71 @@ class ReleaseContractTests(unittest.TestCase):
         for source in ('care.py', 'configuration.py', 'inline_ui.py', 'migrate.py', 'service.py', 'storage.py', 'telegram_api.py'):
             self.assertIn(source, text)
             self.assertIn('!' + source, (ROOT / '.dockerignore').read_text())
+
+    def test_greenwich_image_contains_only_the_worker_sources(self):
+        text = (ROOT / 'Dockerfile').read_text()
+        self.assertIn('PYTHONPATH=/app', text)
+        self.assertIn('COPY --chown=10001:10001 greenwich/ ./greenwich/', text)
+        self.assertFalse((ROOT / 'greenwich' / '__init__.py').exists())
+        rules = (ROOT / '.dockerignore').read_text().splitlines()
+        greenwich_rules = [rule for rule in rules if 'greenwich' in rule]
+        self.assertEqual(greenwich_rules, [
+            '!greenwich/', 'greenwich/*', '!greenwich/bot.py', '!greenwich/council.py',
+            '!greenwich/migrate_storage.py', '!greenwich/runner.py', '!greenwich/storage.py',
+        ])
+        for name in ('bot.py', 'council.py', 'migrate_storage.py', 'runner.py', 'storage.py'):
+            with self.subTest(source=name):
+                self.assertTrue((ROOT / 'greenwich' / name).is_file())
+
+    def test_greenwich_scripts_keep_local_imports_and_find_the_shared_gateway(self):
+        # Reproduce /app without test modules or the checkout on the import path.
+        with tempfile.TemporaryDirectory(prefix='acorn-image-layout-') as temporary:
+            base = Path(temporary)
+            app = base / 'app'
+            (app / 'greenwich').mkdir(parents=True)
+            for name in ('storage.py', 'gateway_client.py', 'telegram_api.py'):
+                shutil.copyfile(ROOT / name, app / name)
+            for name in ('bot.py', 'council.py', 'migrate_storage.py', 'runner.py', 'storage.py'):
+                shutil.copyfile(ROOT / 'greenwich' / name, app / 'greenwich' / name)
+            property_path = base / 'invented-property.json'
+            property_path.write_text(json.dumps({
+                'address_label': '9001 - Example Test Street - Sample Town - ZZ1 1ZZ',
+                'property': {'sao': '', 'pao': '9001', 'streetName': 'Example Test Street',
+                             'postTown': 'Sample Town', 'Postcode': 'ZZ1 1ZZ'},
+            }))
+            environment = {
+                'PYTHONPATH': str(app), 'PYTHONDONTWRITEBYTECODE': '1',
+                'BINS_STATE_PATH': str(base / 'state.json'),
+                'BINS_RUNNER_STATE_PATH': str(base / 'attempts.json'),
+                'BINS_PROPERTY_PATH': str(property_path),
+                'TELEGRAM_GATEWAY_SOCKET': str(base / 'missing.sock'),
+                'TELEGRAM_BOT_TOKEN_FILE': str(base / 'missing-token'),
+            }
+            def execute(script, *arguments):
+                return subprocess.run(
+                    [sys.executable, str(app / 'greenwich' / script), *arguments],
+                    cwd=base, env=environment, text=True, capture_output=True, timeout=10,
+                )
+
+            status = execute('bot.py', 'status')
+            self.assertEqual(status.returncode, 0, status.stderr)
+            self.assertEqual(status.stderr, '')
+            self.assertEqual(json.loads(status.stdout)['status'], 'ok')
+            # A missing synthetic Unix socket must reach the real shared client,
+            # not fail its import or fall back to a token or the Telegram API.
+            verify = execute('bot.py', 'verify')
+            self.assertEqual(verify.returncode, 1, verify.stderr)
+            self.assertEqual(verify.stderr, '')
+            self.assertEqual(json.loads(verify.stdout), {
+                'status': 'error',
+                'description': 'The gateway did not confirm the request. Automatic send retries are blocked.',
+            })
+            runner = execute('runner.py', 'invalid-command')
+            self.assertEqual((runner.returncode, runner.stdout, runner.stderr), (1, '', ''))
+            self.assertFalse((base / 'attempts.json').exists())
+            migration = execute('migrate_storage.py', '--help')
+            self.assertEqual(migration.returncode, 0, migration.stderr)
+            self.assertIn('--confirm-workers-stopped', migration.stdout)
 
     def test_workflow_pins_actions_and_publishes_both_architectures_with_commit_tags(self):
         text = (ROOT / '.github/workflows/ci.yaml').read_text()
