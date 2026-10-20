@@ -46,7 +46,7 @@ class ButtonTests(unittest.TestCase):
     def test_real_button_completes_exactly_one_task(self):
         task = self.s['tasks'][self.keys[0]]
         result = care.complete_button(self.s, care.button_text(task), 'caregiver_b', 'm1', NOW)
-        self.assertIn('✅ Влажный корм, ≈1/4 банки: caregiver_b', result)
+        self.assertIn('✅ Влажный корм, ≈1/4 банки: @caregiver_b', result)
         self.assertEqual(sum(t['status'] == 'done' for t in self.s['tasks'].values()), 1)
         self.assertIsNone(task['next_repeat_at'])
 

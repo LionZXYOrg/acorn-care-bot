@@ -21,6 +21,11 @@ The bot accepts only configured numeric caregiver IDs in the configured chat and
 It rejects future tasks and buttons from another bot or an unregistered message.
 It saves a confirmation before it answers the button press.
 A second press does not issue another portion or replace the first caregiver.
+Messages show the caregiver's `@username`, or their Telegram name when no username exists.
+Numeric IDs remain the internal identity and never grant access through a display name.
+The bot refreshes names from accepted interactions and attempts a Telegram member lookup at startup.
+Existing confirmations keep their original author IDs, times, and portions.
+If no name is available, messages show `участник` instead of the numeric ID.
 
 Reminders include only tasks that remain open.
 An old feeding becomes a confirmation question when the next meal arrives.

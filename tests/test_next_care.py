@@ -850,11 +850,12 @@ class NextCareServiceTests(unittest.TestCase):
         panel['last_digest'] = inline_ui.digest(state, panel)
         for key in keys:
             move(state, key, now)
+        care.remember_caregiver(state, {'id': 101, 'username': 'a' * 32})
         if legacy:
             page = panel['pages'][0]
             raw_lines = page['template'].splitlines()
             for index, binding in page['bindings'].items():
-                raw_lines[int(index)] = care.task_line(state['tasks'][binding['task']], primary=binding['primary'])
+                raw_lines[int(index)] = care.task_line(state['tasks'][binding['task']], primary=binding['primary'], state=state)
             self.assertGreater(len('\n'.join(raw_lines).encode('utf-16-le')) // 2, 4096)
         moved_tasks = copy.deepcopy(state['tasks'])
         bindings = copy.deepcopy(panel['pages'])
@@ -874,9 +875,10 @@ class NextCareServiceTests(unittest.TestCase):
         self.assertEqual(saved['tasks'], moved_tasks)
         self.assertEqual(saved['inline_panels'][panel['nonce']]['pages'], bindings)
         if legacy:
-            self.assertIn('Следующий уход 21.10 14:00', edits[0]['text'])
+            self.assertIn('→ 21.10 14:00', edits[0]['text'])
             self.assertIn('без добавки', edits[0]['text'])
-            self.assertIn('telegram:101', edits[0]['text'])
+            self.assertIn('@' + 'a' * 32, edits[0]['text'])
+            self.assertNotIn('telegram:101', edits[0]['text'])
 
 
 if __name__ == '__main__':

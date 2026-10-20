@@ -92,6 +92,91 @@ class ServiceTests(unittest.TestCase):
     def sends(self):
         return [p for m, p in self.client.calls if m == 'sendMessage']
 
+    def test_callback_username_is_display_only_and_keeps_numeric_audit(self):
+        self.bot.process_update(self.cb())
+        self.bot.sync_panels(NOW)
+        saved = self.store.snapshot()
+        self.assertEqual(saved['tasks'][self.key]['done_by'], 'telegram:101')
+        self.assertEqual(saved['audit'][-1]['actor'], 'telegram:101')
+        self.assertEqual(saved['audit'][-1]['telegram_user_id'], '101')
+        edits = [payload for method, payload in self.client.calls if method == 'editMessageText']
+        self.assertIn('@untrusted_display_name', edits[-1]['text'])
+        self.assertNotIn('telegram:101', edits[-1]['text'])
+
+    def test_command_and_legacy_button_use_username_without_changing_identity(self):
+        for uid, use_button in ((10, False), (11, True)):
+            key = self.panel['task_ids'][uid - 10]
+            text = (care.button_text(self.store.snapshot()['tasks'][key], legacy=True)
+                    if use_button else '/done ' + key)
+            update = self.msg(text, uid)
+            update['message']['from']['username'] = 'caregiver_a'
+            self.bot.process_update(update)
+            saved = self.store.snapshot()
+            reply = ''.join(saved['standalone']['outbox']['update:' + str(uid)]['texts'])
+            self.assertIn('@caregiver_a', reply)
+            self.assertNotIn('telegram:101', reply)
+            self.assertEqual(saved['tasks'][key]['done_by'], 'telegram:101')
+
+    def test_skip_and_move_show_username_and_preserve_transfer(self):
+        for uid, action in ((10, 'next:0'), (11, 'next:2')):
+            update = self.cb(uid)
+            update['callback_query']['data'] = inline_ui.PREFIX + self.panel['nonce'] + ':' + action
+            self.bot.process_update(update)
+        self.bot.process_update(self.msg('/skip ' + self.panel['task_ids'][1], 12))
+        # The no-username command refresh removes the handle. Telegram name is the fallback.
+        update = self.msg('/status', 13)
+        update['message']['from']['username'] = 'caregiver_a'
+        self.bot.process_update(update)
+        self.bot.sync_panels(NOW)
+        state = self.store.snapshot()
+        text = inline_ui.page_text(state, state['inline_panels'][self.panel['nonce']], self.panel['pages'][0])
+        self.assertIn('Пропущено:', text)
+        self.assertIn('@caregiver_a', text)
+        self.assertNotIn('telegram:101', text)
+        self.assertTrue(state['carryovers'])
+        self.assertEqual(state['tasks'][self.key]['skip_by'], 'telegram:101')
+
+    def test_startup_profile_lookup_updates_old_panels_without_changing_care(self):
+        self.bot.process_update(self.cb())
+        before = self.store.snapshot()
+        original = self.client.call
+        def call(method, payload=None):
+            if method == 'getChatMember':
+                return {'user': {'id': payload['user_id'], 'is_bot': False,
+                                 'username': 'caregiver_' + str(payload['user_id'])}}
+            return original(method, payload)
+        with patch.object(self.client, 'call', side_effect=call):
+            self.bot.refresh_caregivers()
+        after = self.store.snapshot()
+        self.assertEqual({k: v for k, v in after.items() if k != 'caregivers'},
+                         {k: v for k, v in before.items() if k != 'caregivers'})
+        self.assertEqual(care.display_actor(after, 'telegram:101'), '@caregiver_101')
+        self.bot.sync_panels(NOW)
+        edits = [payload for method, payload in self.client.calls if method == 'editMessageText']
+        self.assertIn('@caregiver_101', edits[-1]['text'])
+        self.assertNotIn('telegram:101', edits[-1]['text'])
+
+    def test_failed_or_mismatched_member_lookup_preserves_cached_names_and_state(self):
+        self.bot.process_update(self.cb())
+        before = self.store.snapshot()
+        def call(method, payload=None):
+            if payload['user_id'] == 101:
+                raise TelegramError(403)
+            return {'user': {'id': 101, 'is_bot': False, 'username': 'wrong_user'}}
+        with patch.object(self.client, 'call', side_effect=call):
+            self.bot.refresh_caregivers()
+        self.assertEqual(before, self.store.snapshot())
+
+    def test_spoofed_username_cannot_replace_the_author_profile(self):
+        self.bot.process_update(self.cb())
+        before = self.store.snapshot()
+        update = self.cb(11)
+        update['callback_query']['from'].update(id=999, username='untrusted_display_name')
+        self.bot.process_update(update)
+        after = self.store.snapshot()
+        self.assertEqual(before['caregivers'], after['caregivers'])
+        self.assertEqual(before['tasks'], after['tasks'])
+
     def test_commit_precedes_ack_and_survives_reload(self):
         def assert_saved():
             saved = self.store.snapshot()
@@ -405,6 +490,18 @@ class ConfigurationAndTransportTests(unittest.TestCase):
         with patch.object(stop, 'wait', return_value=False):
             self.assertEqual(identity(client, stop)['id'], BOT_ID)
         self.assertEqual(calls, ['getMe', 'getMe', 'getWebhookInfo'])
+
+    def test_real_transport_supports_read_only_member_lookup(self):
+        class Opener:
+            def open(self, request, timeout):
+                self.request = request
+                return io.BytesIO(b'{"ok":true,"result":{"user":{"id":101,"is_bot":false,"username":"caregiver_a"}}}')
+        opener = Opener()
+        result = Client('synthetic', opener).call('getChatMember', {'chat_id': CHAT, 'user_id': 101})
+        self.assertEqual(result['user']['username'], 'caregiver_a')
+        self.assertTrue(opener.request.full_url.endswith('/getChatMember'))
+        self.assertEqual(json.loads(opener.request.data), {'chat_id': CHAT, 'user_id': 101})
+        self.assertEqual(opener.request.method, 'POST')
 
     def test_transport_handles_fake_http_and_redacts_all_exception_context(self):
         token = '999999:synthetic_test_value_only'

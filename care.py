@@ -5,9 +5,11 @@ import copy
 import fcntl
 import json
 import os
+import re
 import sys
 import tempfile
 import uuid
+import unicodedata
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
 from fractions import Fraction
@@ -22,6 +24,7 @@ BOOT_CONFIG = load_care_config(CONFIG_PATH)
 TZ = ZoneInfo(BOOT_CONFIG['timezone'])
 DEFAULT_WET_CAN_GRAMS = BOOT_CONFIG['wet_can_grams']
 CLOSED = {'done', 'skipped'}
+MAX_CAREGIVER_LABEL_UNITS = 64
 CLEANING = {
     'litter': 'Почистить лоток и убрать мусор вокруг.',
     'bowls': 'Помыть использованные миски и протереть место кормления.',
@@ -390,14 +393,57 @@ def short_task(task):
             'water': 'Свежая вода'}[kind]
 
 
-def task_line(task, primary=False):
+def caregiver_name(value, max_units=MAX_CAREGIVER_LABEL_UNITS):
+    """Keep display names on one line and bound their Telegram UTF-16 length."""
+    if not isinstance(value, str):
+        return ''
+    value = ' '.join(value.split())
+    value = ''.join(ch for ch in value if not unicodedata.category(ch).startswith('C'))
+    units, result = 0, []
+    for ch in value:
+        width = len(ch.encode('utf-16-le')) // 2
+        if units + width > max_units:
+            break
+        result.append(ch)
+        units += width
+    return ''.join(result).strip()
+
+
+def remember_caregiver(state, sender):
+    """Store display metadata only after the caller validates numeric access and scope."""
+    username = sender.get('username')
+    if not isinstance(username, str) or not re.fullmatch(r'[A-Za-z0-9_]{1,32}', username):
+        username = None
+    name = caregiver_name(' '.join(value for key in ('first_name', 'last_name')
+                                  if isinstance(value := sender.get(key), str)))
+    state.setdefault('caregivers', {})['telegram:' + str(sender['id'])] = {
+        'username': username, 'name': name}
+
+
+def display_actor(state, actor, max_name_units=MAX_CAREGIVER_LABEL_UNITS):
+    """Display a Telegram username or name, never its internal numeric identity."""
+    actor = str(actor or '')
+    if re.fullmatch(r'(?:telegram:)?[0-9]+', actor):
+        key = actor if actor.startswith('telegram:') else 'telegram:' + actor
+        profile = (state or {}).get('caregivers', {}).get(key, {})
+        username = profile.get('username')
+        if isinstance(username, str) and re.fullmatch(r'[A-Za-z0-9_]{1,32}', username):
+            return '@' + username
+        return caregiver_name(profile.get('name'), max_name_units) or 'участник'
+    # Imported records can already contain a username rather than a numeric identity.
+    if re.fullmatch(r'@?[A-Za-z0-9_]{1,32}', actor):
+        return '@' + actor.lstrip('@')
+    return caregiver_name(actor, max_name_units) or 'участник'
+
+
+def task_line(task, primary=False, state=None):
     kind = task['type']
     if task['status'] == 'done':
         stamp = instant(task['done_at'])
-        return f'✅ {short_task(task)}: {task["done_by"]}, {stamp:%H:%M}.'
+        return f'✅ {short_task(task)}: {display_actor(state, task["done_by"])}, {stamp:%H:%M}.'
     if task['status'] == 'skipped':
         stamp = instant(task['skip_at'])
-        text = f'Пропущено: {short_task(task)} ({task["skip_by"]}, {stamp:%H:%M}).'
+        text = f'Пропущено: {short_task(task)} ({display_actor(state, task["skip_by"])}, {stamp:%H:%M}).'
         if task.get('skip_reason') == 'next_care':
             target_at = instant(task['moved_due_at'])
             if task.get('moved_food_without_addition'):
@@ -474,8 +520,10 @@ def emission_task_ids(s, emission_id):
     return list(dict.fromkeys(keys))
 
 
-def complete_button(s, text, actor, message_id, now):
+def complete_button(s, text, actor, message_id, now, sender=None):
     if text.strip() == BUTTON_TEST:
+        if sender is not None:
+            remember_caregiver(s, sender)
         return 'Кнопка работает: отметка пришла. Кормления и задачи ухода не изменены.'
     matches = [task for task in s['tasks'].values()
                if text.strip() in {button_text(task), button_text(task, legacy=True)}]
@@ -484,6 +532,8 @@ def complete_button(s, text, actor, message_id, now):
     task = matches[0]
     if due(task) > now:
         raise ValueError('Время этой задачи ещё не наступило. Отметка не сохранена.')
+    if sender is not None:
+        remember_caregiver(s, sender)
     mark_old_feedings(s, now)
     args = argparse.Namespace(checklist=task['checklist'], types=[task['type']],
                               action='done', actor=actor, minutes=None,
@@ -551,7 +601,7 @@ def render_checklist(s, cid, updated=False):
     for title, items in [('🍽 Кормление', feeding), (cleaning_title, cleaning)]:
         if items:
             lines.extend(['', title])
-            lines.extend(task_line(task, primary=True) for task in items)
+            lines.extend(task_line(task, primary=True, state=s) for task in items)
     lines.append('')
     if all(task['status'] == 'done' for task in tasks):
         lines.append('✅ Всё выполнено. Спасибо!')
@@ -590,7 +640,7 @@ def render_reminders(s, tasks, morning=False):
     for cid, values in shown:
         checklist = s['checklists'][cid]
         lines.append(f'\n{checklist["date"]} · {checklist["time"]} · список {cid}')
-        lines.extend(task_line(task) for task in values)
+        lines.extend(task_line(task, state=s) for task in values)
     lines.extend(['', 'Проверьте, пожалуйста: возможно, это уже сделано.',
                   'Если корм уже выдали, подтвердите выдачу. Повторно давать эту порцию не нужно.',
                   'Не суммируйте старые порции с новыми.',

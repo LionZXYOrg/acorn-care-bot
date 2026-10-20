@@ -95,7 +95,7 @@ class InlineTests(unittest.TestCase):
     def test_original_text_shows_confirmation_and_preserves_transition_notice(self):
         self.accept()
         text = inline_ui.page_text(self.state, self.panel, self.panel['pages'][0])
-        self.assertIn('✅ Влажный корм, ≈1/4 банки: telegram:101, 07:01.', text)
+        self.assertIn('✅ Влажный корм, ≈1/4 банки: @caregiver_a, 07:01.', text)
         self.assertNotIn('☐ Дать ≈1/4 банки влажного корма.', text)
         self.assertIn('Сегодня меняются порции', text)
         self.assertNotIn('Через 30 минут', text)

@@ -101,8 +101,10 @@ class Bot:
             if addressed and addressed.lower() != self.username.lower():
                 return None
             if command == '/status' and not rest:
+                care.remember_caregiver(state, message['from'])
                 return self.status(state, now)
             if command == '/health_hold' and 1 <= len(rest.strip()) <= 500:
+                care.remember_caregiver(state, message['from'])
                 answer = care.health_hold(state, actor, rest.strip(), now)
                 care.audit(state, 'telegram_health_hold', actor, now,
                            telegram_user_id=message['from']['id'], message_id=mid)
@@ -120,6 +122,7 @@ class Bot:
                 key = match[1] + '_' + match[2]
                 if key not in state['tasks'] or care.due(state['tasks'][key]) > now:
                     return 'Задача не найдена или её время ещё не наступило. Отметка не сохранена.'
+                care.remember_caregiver(state, message['from'])
                 care.mark_old_feedings(state, now)
                 answer = care.update(state, args, now)
             except ValueError:
@@ -129,12 +132,31 @@ class Bot:
             if not text.startswith('✅ '):
                 return HELP if text.lower() in {'done', 'готово', 'всё', 'все', 'сделано'} else None
             try:
-                answer = care.complete_button(state, text, actor, mid, now)
+                answer = care.complete_button(state, text, actor, mid, now, sender=message['from'])
             except ValueError:
                 return 'Текст не соответствует одной доступной задаче. Отметка не сохранена.'
         care.audit(state, 'telegram_task_command', actor, now,
                    telegram_user_id=message['from']['id'], message_id=mid)
         return answer
+
+    def refresh_caregivers(self):
+        """Resolve existing numeric authors at startup without changing task records."""
+        profiles = []
+        for uid in sorted(self.runtime.allowed_ids):
+            try:
+                member = self.client.call('getChatMember', {'chat_id': self.runtime.chat_id,
+                                                           'user_id': uid})
+            except TelegramError as exc:
+                LOG.warning('Caregiver name lookup unavailable (code %d)', exc.code)
+                continue
+            user = member.get('user') if isinstance(member, dict) else None
+            if (isinstance(user, dict) and type(user.get('id')) is int
+                    and user['id'] == uid and user.get('is_bot') is False):
+                profiles.append(user)
+        if profiles:
+            with self.store.transaction() as state:
+                for user in profiles:
+                    care.remember_caregiver(state, user)
 
     def process_update(self, update):
         """Commit the care change, receipt, reply job, and offset before any acknowledgement."""
@@ -396,6 +418,7 @@ def main():
                    fresh_start=runtime.fresh_start)
         bot = Bot(runtime, client, me['id'], me['username'], store)
         bot.stop = stop
+        bot.refresh_caregivers()
         server = health_server(bot)
         threads = [threading.Thread(target=server.serve_forever, name='acorn-health', daemon=True),
                    threading.Thread(target=bot.worker_loop, name='acorn-dispatch', daemon=True)]

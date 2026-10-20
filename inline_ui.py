@@ -15,7 +15,7 @@ PAGE_LIMIT = 3500
 def task_line_size(task, primary, now):
     """Reserve room for later completion, skip, clarification, and snooze edits."""
     stamp = care.iso(now)
-    actor = 'telegram:' + '9' * 20  # More than Telegram's maximum numeric ID width.
+    actor = 'я' * care.MAX_CAREGIVER_LABEL_UNITS  # Reserve the longest display name.
     variants = [task, {**task, 'status': 'done', 'done_by': actor, 'done_at': stamp},
                 {**task, 'status': 'skipped', 'skip_by': actor, 'skip_at': stamp,
                  'skip_reason': 'next_care', 'moved_due_at': stamp,
@@ -43,7 +43,7 @@ def prepare(state, parts, task_ids, now, primary=None, test=False):
             binding = None
             units = len(line.encode('utf-16-le')) // 2
             for key in candidates:
-                if line == care.task_line(state['tasks'][key], primary=is_primary):
+                if line == care.task_line(state['tasks'][key], primary=is_primary, state=state):
                     binding = {'task': key, 'primary': is_primary}
                     units = max(units, task_line_size(state['tasks'][key], is_primary, now))
                     break
@@ -95,7 +95,7 @@ def page_text(state, panel, page):
     lines = page['template'].splitlines()
     for index, binding in page['bindings'].items():
         lines[int(index)] = care.task_line(state['tasks'][binding['task']],
-                                          primary=binding['primary'])
+                                          primary=binding['primary'], state=state)
     tasks = [state['tasks'][key] for key in panel['task_ids']]
     closed = bool(tasks) and all(task['status'] in care.CLOSED for task in tasks)
     all_done = closed and all(task['status'] == 'done' for task in tasks)
@@ -125,15 +125,22 @@ def page_text(state, panel, page):
         for index, binding in page['bindings'].items():
             task = state['tasks'][binding['task']]
             if task['status'] == 'skipped':
-                line = f'Пропущено: {care.short_task(task)} ({task["skip_by"]}).'
+                line = f'Пропущено: {care.short_task(task)} ({care.display_actor(state, task["skip_by"], max_name_units=32)}).'
                 if task.get('skip_reason') == 'next_care':
                     at = care.instant(task['moved_due_at'])
                     line += f' Следующий уход {at:%d.%m %H:%M}'
                     line += ', без добавки.' if task.get('moved_food_without_addition') else '.'
                 lines[int(index)] = line
             elif task['status'] == 'done':
-                lines[int(index)] = f'✅ {care.short_task(task)}: {task["done_by"]}.'
+                lines[int(index)] = f'✅ {care.short_task(task)}: {care.display_actor(state, task["done_by"], max_name_units=32)}.'
         text = '\n'.join(lines).rstrip()
+        if len(text.encode('utf-16-le')) // 2 > MESSAGE_LIMIT:
+            # Keep full usernames and transfer dates on dense pre-upgrade pages.
+            for index, binding in page['bindings'].items():
+                task = state['tasks'][binding['task']]
+                if task['status'] == 'skipped' and task.get('skip_reason') == 'next_care':
+                    lines[int(index)] = lines[int(index)].replace(' Следующий уход ', ' → ', 1)
+            text = '\n'.join(lines).rstrip()
     return text
 
 
@@ -175,6 +182,7 @@ def accept_callback(state, callback, allowed_ids, bot_id, now, chat_id, topic_id
     if match.group(2) == 'test':
         if not panel['test']:
             return rejection
+        care.remember_caregiver(state, sender)
         panel['test_done'] = True
         panel['test_by'] = actor
         panel['test_at'] = care.iso(now)
@@ -195,9 +203,11 @@ def accept_callback(state, callback, allowed_ids, bot_id, now, chat_id, topic_id
                                            'telegram_callback_' + callback_id, str(sender['id']))
             except ValueError as error:
                 return {'text': str(error), 'show_alert': True}
+            care.remember_caregiver(state, sender)
             answer = {'text': care.move_answer(result), 'show_alert': False}
         else:
             already_closed = task['status'] in care.CLOSED
+            care.remember_caregiver(state, sender)
             if not already_closed:
                 care.complete_button(state, care.button_text(task), actor,
                                      'telegram_callback_' + callback_id, now)

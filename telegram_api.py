@@ -24,7 +24,7 @@ class Client:
         self._opener = opener or urllib.request.build_opener(NoRedirect())
 
     def call(self, method, payload=None):
-        if method not in {'getMe', 'getWebhookInfo', 'getUpdates', 'sendMessage',
+        if method not in {'getMe', 'getWebhookInfo', 'getChatMember', 'getUpdates', 'sendMessage',
                           'editMessageText', 'answerCallbackQuery'}:
             raise ValueError('Unsupported Telegram operation')
         request = urllib.request.Request(
