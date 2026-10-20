@@ -268,7 +268,7 @@ On `main`, it publishes `linux/amd64` and `linux/arm64` images to GitHub Contain
 The image name is `ghcr.io/lionzxyorg/acorn-care-bot`.
 Each image has a `sha-COMMIT` tag and a moving `main` tag.
 Deployment manifests must use the tested commit tag or image digest, not the moving tag.
-The private package requires a registry credential with `read:packages` permission.
+The public package needs no registry credential.
 The workflow uses its short-lived `GITHUB_TOKEN` to publish images.
 A local container build needs Docker:
 
@@ -277,6 +277,55 @@ docker build --tag acorn-care-bot:local .
 ```
 
 The [infra repository](https://github.com/LionZXYOrg/infra) contains the Flux deployment.
-Its initial deployment stays suspended with zero replicas until token delivery and an approved state setup are complete.
-For state setup, use an explicit import or an owner-approved fresh start.
-No production deployment or real Telegram end-to-end test can run before the owner supplies the new token.
+The existing Acorn Deployment remains live until a coordinated cutover to the shared suite.
+The shared suite stays suspended with zero replicas during preparation.
+It reuses the existing Acorn token and saved care record without a fresh start.
+
+
+## Shared Telegram gateway
+
+The same image also runs `gateway.py`, a shared Telegram connection for isolated worker containers.
+Only the gateway receives the real bot token. Workers use `TELEGRAM_GATEWAY_SOCKET` instead.
+If that variable is present, Acorn never falls back to a token or a direct Telegram request.
+Standalone Acorn operation remains available when the variable is absent.
+
+Each worker has a private Unix socket and a distinct Linux user ID.
+The gateway checks the caller's kernel identity before accepting a request.
+Its registry assigns methods and one chat/topic destination to each worker.
+Only the gateway polls Telegram. It saves update queues and its offset in SQLite before acknowledging upstream updates.
+Workers retain their existing saved offsets and acknowledge their own queues only after saving application changes.
+A queue limit stops polling rather than dropping addressed updates.
+
+The gateway records confirmed outgoing message IDs with their owner.
+A worker cannot edit, pin, unpin, or delete another worker's message.
+Callback answers require a callback that the gateway routed to that worker.
+No worker can change webhooks, global commands, topics, or all pins.
+Each module has a separate upstream request slot and a limit of 60 requests per minute.
+Each module can retain at most 100,000 owned message receipts before an operator must review its storage.
+Transport errors retain their uncertain-delivery flag, and the gateway never retries a send.
+
+For the first migration, `gateway_seed.py` copies only saved Acorn message receipts and its offset.
+It reads care state without modifying it and refuses an active old-service lease.
+The gateway binds this snapshot to the same bot, chat, and topic.
+Later restarts use the gateway database and do not accept new worker-authored ownership imports.
+Care state, health holds, portion history, and pending transfers remain on Acorn's existing volume.
+
+The [infra suite](https://github.com/LionZXYOrg/infra/tree/master/apps/telegram-bot-suite) defines the container and volume boundaries.
+The preparation keeps the new suite suspended with zero replicas until a coordinated cutover.
+Containers share the pod network and host kernel. They are not separate virtual machines.
+The gateway and node administrator remain trusted because the gateway can use the shared token.
+A module addition needs a unique registry route, Unix user, socket volume, configuration, and its own state volume.
+
+### Pause and drain before rollback
+
+The gateway uses a private pause file, `/gateway/private/pause-polling` in the deployed suite.
+Only an operator in the gateway container can create this file.
+A pause stops new upstream polls but keeps worker sockets and existing update queues available.
+The `/drainz` endpoint returns HTTP 200 only after polling stops and every worker acknowledges its saved queue.
+Do not stop workers before this queue drains. Telegram can already consider those updates acknowledged.
+If a worker cannot drain, keep both receivers stopped and recover the saved queue offline.
+
+After draining, stop the shared suite before restoring a standalone receiver.
+Preserve the gateway database, ownership receipts, and original polling offset.
+Before returning to the suite, reconcile any updates processed by the standalone receiver during rollback.
+Do not assume that removing the pause file makes an old gateway database current.

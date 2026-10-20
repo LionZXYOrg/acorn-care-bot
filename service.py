@@ -399,13 +399,23 @@ def identity(client, stop):
     raise ValueError('Startup stopped')
 
 
+def configured_client():
+    """Use the isolated gateway when configured. Keep standalone compatibility."""
+    if 'TELEGRAM_GATEWAY_SOCKET' in os.environ:
+        from gateway_client import UnixClient
+        path = os.environ['TELEGRAM_GATEWAY_SOCKET']
+        if not path or not os.path.isabs(path):
+            raise ValueError('An absolute Telegram gateway socket is required')
+        return UnixClient(path)
+    return Client(read_token())
+
+
 def main():
     os.umask(0o077)
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
-    # No listener, state file, or Telegram request starts before a token is available.
-    token = read_token()
+    # A socket configuration never falls back to the real Telegram token.
+    client = configured_client()
     runtime = Runtime.from_env()
-    client = Client(token)
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())

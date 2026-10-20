@@ -8,3 +8,6 @@
 !storage.py
 !telegram_api.py
 !config.example.json
+!gateway.py
+!gateway_client.py
+!gateway_seed.py

@@ -14,7 +14,7 @@ RUN apt-get update \
     && chown 10001:10001 /data
 
 WORKDIR /app
-COPY --chown=10001:10001 care.py configuration.py inline_ui.py migrate.py service.py storage.py telegram_api.py config.example.json ./
+COPY --chown=10001:10001 care.py configuration.py inline_ui.py migrate.py service.py storage.py telegram_api.py gateway.py gateway_client.py gateway_seed.py config.example.json ./
 USER 10001:10001
 EXPOSE 8080
 STOPSIGNAL SIGTERM
