@@ -4,6 +4,7 @@
   "timezone": "Europe/London",
   "start_date": "2026-10-19",
   "repeat_minutes": 30,
+  "bowls_morning_only": true,
   "quiet_start": "23:00",
   "quiet_end": "07:00",
   "wet_product": "Royal Canin Gastrointestinal Kitten",
@@ -28,8 +29,7 @@
       "label": "Ужин и вечерняя уборка",
       "cleaning": true,
       "cleaning_tasks": [
-        "litter",
-        "bowls"
+        "litter"
       ]
     }
   ],

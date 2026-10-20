@@ -9,6 +9,64 @@ import care
 from configuration import validate_care_config
 
 
+def morning_only_bowls_slots(slots):
+    """Remove only routine nonbreakfast bowls, including implicit cleaning lists."""
+    slots = copy.deepcopy(slots)
+    for slot in slots:
+        if slot['key'] == 'breakfast':
+            continue
+        kinds = slot.get('cleaning_tasks', list(care.CLEANING) if slot['cleaning'] else [])
+        if 'bowls' in kinds:
+            slot['cleaning_tasks'] = [kind for kind in kinds if kind != 'bowls']
+    return slots
+
+
+def migrate_morning_only_bowls(s, now):
+    """Narrow the saved plan without replaying care or rewriting earlier history."""
+    today = care.instant(now.isoformat()).date()
+    effective = today.isoformat()
+    active = care.slots_for_day(s, today)
+    today_slots = morning_only_bowls_slots(active)
+    needs_today = today_slots != active
+    changed = s['config'].get('bowls_morning_only') is not True
+    s['config']['bowls_morning_only'] = True
+
+    plans = [s['config']]
+    if s.get('pending_config'):
+        plans.append(s['pending_config'])
+    history = s.get('schedule_history', [])
+    plans.extend(item for item in history if item['effective'] >= effective)
+    for plan in plans:
+        slots = morning_only_bowls_slots(plan['slots'])
+        if slots != plan['slots']:
+            plan['slots'] = slots
+            changed = True
+    if needs_today and not any(item['effective'] == effective for item in history):
+        # Insert before future changes so slots_for_day keeps their original order.
+        index = next((i for i, item in enumerate(history) if item['effective'] > effective), len(history))
+        history.insert(index, {'effective': effective, 'slots': today_slots})
+        s['schedule_history'] = history
+        changed = True
+
+    skipped = []
+    for key, task in s['tasks'].items():
+        # A queued transfer can reach an existing task before carried_from is applied.
+        if (task['type'] != 'bowls' or task['status'] in care.CLOSED
+                or 'carried_from' in task or key in s.get('carryovers', {})):
+            continue
+        checklist = s['checklists'][task['checklist']]
+        if checklist['date'] < effective or checklist['slot'] == 'breakfast':
+            continue
+        task.update(status='skipped', skip_by='configuration', skip_at=care.iso(now),
+                    skip_reason='bowls_morning_only', next_repeat_at=None,
+                    snoozed_until=None, needs_clarification=False)
+        skipped.append(key)
+    if changed or skipped:
+        care.audit(s, 'bowls_morning_only_applied', 'configuration', now,
+                   effective=effective, task_ids=skipped,
+                   reason='Routine bowls and feeding-area cleaning now run only at breakfast.')
+
+
 class Store:
     def __init__(self, path):
         self.path = path
@@ -68,7 +126,9 @@ class Store:
                     job['status'] = 'needs_review'
                     if job.get('panel'):
                         s['inline_panels'][job['panel']]['status'] = 'needs_review'
-            # Only the repeat toggle is reloadable. Preserve the saved care plan.
+            # Apply only these explicit startup switches. Keep the rest of the saved plan.
+            if care.BOOT_CONFIG.get('bowls_morning_only') is True:
+                migrate_morning_only_bowls(s, now)
             if 'automatic_repeats' in care.BOOT_CONFIG:
                 enabled = care.BOOT_CONFIG['automatic_repeats']
                 if s['config'].get('automatic_repeats', True) != enabled:

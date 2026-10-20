@@ -8,6 +8,10 @@ The cat's name is `Acorn` in the configuration and messages.
 The source repository is [LionZXYOrg/acorn-care-bot](https://github.com/LionZXYOrg/acorn-care-bot).
 
 The example plan uses `07:00`, `14:00`, and `19:00` in `Europe/London`.
+Routine bowl washing and feeding-area wiping run once daily at breakfast.
+Litter cleaning runs at breakfast and dinner. Fresh water runs at breakfast only.
+Lunch has no routine cleaning.
+
 Quiet hours run from `23:00` to `07:00`, including seasonal clock changes.
 Wet food uses can fractions. Dry food uses grams.
 The example preserves the owners' original gram amounts and stage dates.
@@ -97,8 +101,22 @@ The standalone bot does not offer schedule-change commands.
 Copy `config.example.json` to a protected location outside the checkout.
 Set its caregiver mentions and make sure that its portions match the approved plan.
 The application loads that file before it creates care state.
-If a state file exists, the bot preserves its care configuration and confirmations.
+If a state file exists, the bot preserves its care plan except for the startup switches described below.
 A different timezone requires an explicit migration.
+
+The example sets the optional boolean `bowls_morning_only` to `true`.
+A schedule snapshot is a saved copy of meal slots.
+When this flag is `true`, startup removes routine nonbreakfast bowls from saved and pending plans, plus today's and future schedule snapshots.
+Earlier schedule snapshots stay unchanged. The change does not alter meal times, portions, stage dates, quiet hours, holds, pauses, confirmations, or transfers.
+It does not create or replay a breakfast checklist or create a future feeding.
+
+Existing open routine nonbreakfast bowls tasks for today or later become `skipped`, not completed.
+The record keeps the reason `bowls_morning_only` and an audit entry, a saved record of the change.
+Their repeats and snoozes stop. Completed tasks, skipped tasks, and earlier tasks stay unchanged.
+One-time cleaning transfers still run, including tasks with `carried_from` and queued transfers to existing tasks.
+
+Restarts do not repeat the change or its audit entry when the saved plan and tasks need no changes.
+Removing the flag or setting it to `false` does not restore the previous cleaning frequency.
 
 To keep scheduled checklists without automatic repeats, set `automatic_repeats` to `false` in the care configuration.
 The default is `true`.
