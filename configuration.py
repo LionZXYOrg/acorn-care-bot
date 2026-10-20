@@ -26,6 +26,8 @@ def validate_care_config(c):
         raise ValueError('Quiet hours must cross midnight')
     if type(c.get('automatic_repeats', True)) is not bool:
         raise ValueError('Invalid automatic reminder flag')
+    if type(c.get('bowls_morning_only', False)) is not bool:
+        raise ValueError('Invalid morning-only bowls flag')
     if type(c['repeat_minutes']) is not int or not 1 <= c['repeat_minutes'] <= 1440:
         raise ValueError('Invalid repeat interval')
     if type(c['wet_can_grams']) not in (int, float) or not math.isfinite(c['wet_can_grams']) or c['wet_can_grams'] <= 0:

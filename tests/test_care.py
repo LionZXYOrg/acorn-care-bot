@@ -190,7 +190,7 @@ class CareTests(unittest.TestCase):
                     else:
                         self.assertNotIn('wet', tasks)
                     for kind in care.CLEANING:
-                        expected_cleaning = slot['key'] != 'lunch' and (kind != 'water' or slot['key'] == 'breakfast')
+                        expected_cleaning = slot['key'] == 'breakfast' or (slot['key'] == 'dinner' and kind == 'litter')
                         self.assertEqual(kind in tasks, expected_cleaning)
                 self.assertEqual(len(state['checklists']), 3)
                 self.assertEqual(sum(t['grams'] for t in state['tasks'].values() if t['type'] == 'wet'), daily_wet)
@@ -391,7 +391,7 @@ class CareTests(unittest.TestCase):
         cid = '2026-10-19_19:00'
         self.assertNotIn(cid + '_water', self.s['tasks'])
         tasks = care.unresolved(self.s, cid)
-        self.assertEqual({task['type'] for task in tasks}, {'wet', 'dry', 'litter', 'bowls'})
+        self.assertEqual({task['type'] for task in tasks}, {'wet', 'dry', 'litter'})
         repeat = care.render_reminders(self.s, tasks)
         self.assertNotIn('питьевую воду', repeat)
         self.assertEqual([task['checklist'] for task in self.s['tasks'].values() if task['type'] == 'water'],
@@ -410,7 +410,7 @@ class CareTests(unittest.TestCase):
         self.assertEqual(self.s['config'], before)
         item = next(iter(self.s['proposals'].values()))
         dinner = next(slot for slot in item['config']['slots'] if slot['key'] == 'dinner')
-        self.assertEqual(dinner['cleaning_tasks'], ['litter', 'bowls'])
+        self.assertEqual(dinner['cleaning_tasks'], ['litter'])
 
 
 if __name__ == '__main__':
