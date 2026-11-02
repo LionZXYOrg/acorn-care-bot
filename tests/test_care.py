@@ -25,13 +25,13 @@ class CareTests(unittest.TestCase):
         self.assertTrue(text.startswith('🐾 Acorn · завтрак и утренняя уборка\n'))
         self.assertIn('Caregivers, доброе утро!', text)
         self.assertIn('Сегодня меняются порции', text)
-        self.assertIn('Дать ≈1/4 банки влажного', text)
+        self.assertIn('Дать 49 г влажного', text)
         self.assertIn('Дать 10 г сухого', text)
         self.assertEqual(len(self.s['tasks']), 5)
         self.assertEqual(self.tick('2026-10-19T07:00:10+01:00'), 'NO_REPLY')
         self.assertEqual(self.tick('2026-10-19T07:29:59+01:00'), 'NO_REPLY')
         repeat = self.tick('2026-10-19T07:30:00+01:00')
-        self.assertIn('Влажный корм, ≈1/4 банки', repeat)
+        self.assertIn('Влажный корм, 49 г', repeat)
         self.assertNotIn('☐ Дать', repeat)
 
     def test_shared_completion_idempotent(self):
@@ -82,7 +82,7 @@ class CareTests(unittest.TestCase):
         self.assertNotIn('Влажный корм', first)
         self.tick('2026-10-19T08:00:00+01:00')
         second = self.tick('2026-10-19T08:11:00+01:00')
-        self.assertIn('Влажный корм, ≈1/4 банки', second)
+        self.assertIn('Влажный корм, 49 г', second)
 
     def test_stage_portions(self):
         self.assertEqual(care.stage_for(self.s, date(2026, 11, 1))['wet'], [49, 49, 97])
@@ -104,7 +104,7 @@ class CareTests(unittest.TestCase):
         self.s['last_tick'] = '2026-11-02T06:00:00+00:00'
         text = self.tick('2026-11-02T07:00:00+00:00')
         self.assertIn('смена этапов приостановлена', text)
-        self.assertIn('Дать ≈1/4 банки влажного', text)
+        self.assertIn('Дать 49 г влажного', text)
         self.assertIn('Почистить лоток', text)
 
     def test_proposal_does_not_apply(self):
@@ -239,7 +239,7 @@ class CareTests(unittest.TestCase):
         self.s['last_tick'] = '2026-11-15T06:00:00+00:00'
         text = self.tick('2026-11-15T07:00:00+00:00')
         self.assertNotIn('Завтра запланирован переход на сухой корм', text)
-        self.assertIn('Дать ≈1/4 банки влажного', text)
+        self.assertIn('Дать 49 г влажного', text)
         self.assertIn('Дать 10 г сухого', text)
         self.assertIn('Почистить лоток', text)
         self.assertIn('Налить свежую питьевую воду', text)
@@ -270,11 +270,11 @@ class CareTests(unittest.TestCase):
             '19 октября · 07:00\n'
             'Caregivers, доброе утро! Пора покормить Acorn и немного прибраться.\n\n'
             '**Сегодня меняются порции**\n'
-            '07:00: ≈1/4 банки влажного + 10 г сухого.\n'
-            '14:00: ≈1/4 банки влажного + 10 г сухого.\n'
-            '19:00: ≈1/2 банки влажного + 10 г сухого.\n\n'
+            '07:00: 49 г влажного + 10 г сухого.\n'
+            '14:00: 49 г влажного + 10 г сухого.\n'
+            '19:00: 97 г влажного + 10 г сухого.\n\n'
             '🍽 Кормление\n'
-            '☐ Дать ≈1/4 банки влажного корма.\n'
+            '☐ Дать 49 г влажного корма.\n'
             '☐ Дать 10 г сухого корма.\n\n'
             '🧹 Уборка и вода\n'
             '☐ Почистить лоток и убрать мусор вокруг.\n'
@@ -298,7 +298,7 @@ class CareTests(unittest.TestCase):
             '20 октября · 07:00\n'
             'Caregivers, доброе утро! Пора покормить Acorn и немного прибраться.\n\n'
             '🍽 Кормление\n'
-            '☐ Дать ≈1/4 банки влажного корма.\n'
+            '☐ Дать 49 г влажного корма.\n'
             '☐ Дать 10 г сухого корма.\n\n'
             '🧹 Уборка и вода\n'
             '☐ Почистить лоток и убрать мусор вокруг.\n'
@@ -319,7 +319,7 @@ class CareTests(unittest.TestCase):
             '20 октября · 14:00\n'
             'Caregivers, добрый день! Пора покормить Acorn.\n\n'
             '🍽 Кормление\n'
-            '☐ Дать ≈1/4 банки влажного корма.\n'
+            '☐ Дать 49 г влажного корма.\n'
             '☐ Дать 10 г сухого корма.\n\n'
             '✅ Отмечайте выполненное\n'
             '⏰ Через 30 минут напомню только о неотмеченных пунктах.'
@@ -340,7 +340,7 @@ class CareTests(unittest.TestCase):
         self.assertIn('🧹 Уборка\n', text)
         self.assertNotIn('Уборка и вода', text)
         self.assertNotIn('питьевую воду', text)
-        self.assertIn('Дать ≈1/2 банки влажного', text)
+        self.assertIn('Дать 97 г влажного', text)
 
     def test_grouped_messages_include_mentions_once(self):
         text = self.tick('2026-10-19T07:00:00+01:00')

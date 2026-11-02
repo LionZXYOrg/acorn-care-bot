@@ -110,7 +110,7 @@ class RepeatControlTests(unittest.TestCase):
         self.assertEqual(self.tick('2026-10-19T07:30:00+01:00'), 'NO_REPLY')
         text = self.tick('2026-10-19T14:00:00+01:00')
         self.assertIn('смена этапов приостановлена', text)
-        self.assertIn('Дать ≈1/4 банки', text)
+        self.assertIn('Дать 49 г', text)
         self.assertEqual(self.state['progression_hold'], hold)
 
 

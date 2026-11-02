@@ -52,7 +52,7 @@ class InlineTests(unittest.TestCase):
     def test_short_labels_keep_full_callback_identity(self):
         rows = inline_ui.keyboard(self.state, self.panel)['inline_keyboard']
         self.assertEqual([row[0]['text'] for row in rows], [
-            '✅ Влажный ≈1/4 банки', '✅ Сухой 10 г',
+            '✅ Влажный 49 г', '✅ Сухой 10 г',
             '✅ Лоток', '✅ Миски', '✅ Вода',
         ])
         for index, row in enumerate(rows):
@@ -95,8 +95,8 @@ class InlineTests(unittest.TestCase):
     def test_original_text_shows_confirmation_and_preserves_transition_notice(self):
         self.accept()
         text = inline_ui.page_text(self.state, self.panel, self.panel['pages'][0])
-        self.assertIn('✅ Влажный корм, ≈1/4 банки: @caregiver_a, 07:01.', text)
-        self.assertNotIn('☐ Дать ≈1/4 банки влажного корма.', text)
+        self.assertIn('✅ Влажный корм, 49 г: @caregiver_a, 07:01.', text)
+        self.assertNotIn('☐ Дать 49 г влажного корма.', text)
         self.assertIn('Сегодня меняются порции', text)
         self.assertNotIn('Через 30 минут', text)
         self.assertNotIn('Пора покормить', text)

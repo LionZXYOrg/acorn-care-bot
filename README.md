@@ -13,7 +13,10 @@ Litter cleaning runs at breakfast and dinner. Fresh water runs at breakfast only
 Lunch has no routine cleaning.
 
 Quiet hours run from `23:00` to `07:00`, including seasonal clock changes.
-Wet food uses can fractions. Dry food uses grams.
+Wet and dry food portions use their exact stored weights in grams.
+Checklists, reminders, buttons, and transfer confirmations use the same unit.
+Old fraction-based text buttons still confirm only their original saved tasks.
+This display format does not change portions, stage dates, or the feeding schedule.
 The example preserves the owners' original gram amounts and stage dates.
 It is not a veterinary prescription or a permanent allowance for a growing kitten.
 

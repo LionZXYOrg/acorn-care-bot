@@ -363,7 +363,16 @@ def mark_old_feedings(s, now):
 
 
 def wet_amount(grams, can_grams=None, accusative=False):
-    """Display can fractions without changing the stored gram portion."""
+    """Display the stored wet-food weight in grams without changing its amount."""
+    weight = Fraction(str(grams))
+    can = Fraction(str(DEFAULT_WET_CAN_GRAMS if can_grams is None else can_grams))
+    if weight < 0 or can <= 0:
+        raise ValueError('Неверная порция или масса банки.')
+    return f'{food_grams(weight)} г'
+
+
+def _legacy_wet_fraction(grams, can_grams=None, accusative=False):
+    """Recognize old text-button labels without displaying new portions as fractions."""
     weight = Fraction(str(grams))
     can = Fraction(str(DEFAULT_WET_CAN_GRAMS if can_grams is None else can_grams))
     if weight < 0 or can <= 0:
@@ -481,13 +490,14 @@ BUTTON_BOT = '@example_care_bot'  # Replaced only after getMe authenticates the 
 BUTTON_TEST = '✅ Тест кнопки ' + BUTTON_BOT
 
 
-def button_text(task, legacy=False):
+def button_text(task, legacy=False, can_fraction=False):
     """Include the full date and bot mention in every text button."""
     names = {'wet': 'Влажный', 'dry': 'Сухой', 'litter': 'Лоток',
              'bowls': 'Миски', 'water': 'Вода'}
     label = names[task['type']]
     if task['type'] == 'wet' and not legacy:
-        label += ' ' + wet_amount(task['grams'], task.get('wet_can_grams'))
+        formatter = _legacy_wet_fraction if can_fraction else wet_amount
+        label += ' ' + formatter(task['grams'], task.get('wet_can_grams'))
     elif task['type'] in {'wet', 'dry'}:
         label += f' {task["grams"]} г'
     stamp = due(task).strftime('%d.%m.%Y %H:%M')
@@ -526,7 +536,8 @@ def complete_button(s, text, actor, message_id, now, sender=None):
             remember_caregiver(s, sender)
         return 'Кнопка работает: отметка пришла. Кормления и задачи ухода не изменены.'
     matches = [task for task in s['tasks'].values()
-               if text.strip() in {button_text(task), button_text(task, legacy=True)}]
+               if text.strip() in {button_text(task), button_text(task, legacy=True),
+                                   button_text(task, can_fraction=True)}]
     if len(matches) != 1:
         raise ValueError('Кнопка не соответствует сохранённой задаче. Уточните дату, время и пункт.')
     task = matches[0]

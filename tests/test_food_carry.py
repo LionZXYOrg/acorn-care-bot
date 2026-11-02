@@ -45,14 +45,16 @@ class FoodCarryTests(unittest.TestCase):
         self.assertEqual(source['moved_food_grams'], 10)
         self.assertIn('Весь объём добавлен', care.task_line(source))
 
-    def test_wet_and_dry_remain_separate_and_wet_stays_in_can_fractions(self):
-        self.move('wet')
+    def test_wet_and_dry_remain_separate_and_use_exact_grams(self):
+        result = self.move('wet')
+        self.assertIn('добавлено: 49 г', care.move_answer(result))
+        self.assertNotIn('банки', care.move_answer(result))
         self.move('dry')
         text = self.materialize()
         self.assertEqual(self.state['tasks'][self.target + '_wet']['grams'], 98)
         self.assertEqual(self.state['tasks'][self.target + '_dry']['grams'], 20)
-        self.assertIn('Дать ≈1/2 банки влажного корма. Включая перенос: ≈1/4 банки.', text)
-        self.assertIn('Влажный ≈1/2 банки', care.button_text(self.state['tasks'][self.target + '_wet']))
+        self.assertIn('Дать 98 г влажного корма. Включая перенос: 49 г.', text)
+        self.assertIn('Влажный 98 г', care.button_text(self.state['tasks'][self.target + '_wet']))
 
     def test_repeated_press_cannot_add_or_replace_caregiver(self):
         self.move()
