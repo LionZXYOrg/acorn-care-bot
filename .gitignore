@@ -7,6 +7,8 @@ __pycache__/
 *.json
 !config.example.json
 !nutrition-plan-2026-11.json
+# The owners approved this public deployment configuration.
+!deploy/standalone/config.json
 *.lock
 *.log
 *.key

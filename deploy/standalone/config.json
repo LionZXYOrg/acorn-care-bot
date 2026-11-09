@@ -1,0 +1,773 @@
+{
+  "version": 1,
+  "name": "Acorn",
+  "timezone": "Europe/London",
+  "start_date": "2026-10-19",
+  "repeat_minutes": 30,
+  "automatic_repeats": false,
+  "bowls_morning_only": false,
+  "quiet_start": "23:00",
+  "quiet_end": "07:00",
+  "wet_product": "Royal Canin Gastrointestinal Kitten",
+  "wet_can_grams": 195,
+  "dry_product": "Royal Canin Gastrointestinal Kitten",
+  "slots": [
+    {
+      "key": "breakfast",
+      "time": "07:00",
+      "label": "Завтрак и утренняя уборка",
+      "cleaning": true,
+      "cleaning_tasks": [
+        "litter",
+        "bowls",
+        "water"
+      ],
+      "cleaning_labels": {
+        "litter": "Почистить лоток.",
+        "bowls": "Помыть миски.",
+        "water": "Налить свежую воду."
+      }
+    },
+    {
+      "key": "lunch",
+      "time": "14:00",
+      "label": "Обед",
+      "cleaning": false,
+      "cleaning_tasks": [],
+      "cleaning_labels": {}
+    },
+    {
+      "key": "dinner",
+      "time": "19:00",
+      "label": "Ужин и вечерняя уборка",
+      "cleaning": true,
+      "cleaning_tasks": [
+        "litter",
+        "bowls",
+        "water"
+      ],
+      "cleaning_labels": {
+        "litter": "Почистить лоток.",
+        "bowls": "Помыть использованные миски.",
+        "water": "Проверить питьевую воду."
+      }
+    }
+  ],
+  "stages": [
+    {
+      "id": "weeks_1_2",
+      "start": "2026-10-19",
+      "label": "Недели 1–2",
+      "wet": [
+        49,
+        49,
+        97
+      ],
+      "dry": [
+        10,
+        10,
+        10
+      ],
+      "daily_wet": 195,
+      "daily_dry": 30
+    },
+    {
+      "id": "week_3",
+      "start": "2026-11-02",
+      "label": "Неделя 3",
+      "wet": [
+        33,
+        32,
+        65
+      ],
+      "dry": [
+        15,
+        15,
+        16
+      ],
+      "daily_wet": 130,
+      "daily_dry": 46
+    },
+    {
+      "id": "week_4",
+      "start": "2026-11-09",
+      "label": "Текущий рацион до 19 ноября",
+      "wet": [
+        22,
+        21,
+        22
+      ],
+      "wet_new": [
+        0,
+        0,
+        0
+      ],
+      "dry": [
+        21,
+        20,
+        21
+      ],
+      "dry_new": [
+        0,
+        0,
+        0
+      ],
+      "daily_wet": 65,
+      "daily_wet_new": 0,
+      "daily_dry": 62,
+      "daily_dry_new": 0
+    },
+    {
+      "id": "gi_current",
+      "start": "2026-11-10",
+      "label": "Рацион до 29 ноября",
+      "morning_notice": true,
+      "advance_notice": "С 10 ноября меняем порции мусса GI и сухого GI.",
+      "wet": [
+        32,
+        32,
+        65
+      ],
+      "daily_wet": 129,
+      "wet_new": [
+        0,
+        0,
+        0
+      ],
+      "daily_wet_new": 0,
+      "dry": [
+        15,
+        15,
+        16
+      ],
+      "daily_dry": 46,
+      "dry_new": [
+        0,
+        0,
+        0
+      ],
+      "daily_dry_new": 0
+    },
+    {
+      "id": "wet_step_1",
+      "start": "2026-11-30",
+      "label": "Добавляем желе Kitten",
+      "morning_notice": true,
+      "advance_notice": "С 30 ноября добавляем желе Kitten.",
+      "wet": [
+        23,
+        23,
+        45
+      ],
+      "daily_wet": 91,
+      "wet_new": [
+        11,
+        11,
+        21
+      ],
+      "daily_wet_new": 43,
+      "dry": [
+        15,
+        15,
+        16
+      ],
+      "daily_dry": 46,
+      "dry_new": [
+        0,
+        0,
+        0
+      ],
+      "daily_dry_new": 0
+    },
+    {
+      "id": "wet_step_2",
+      "start": "2026-12-02",
+      "label": "Увеличиваем долю желе Kitten",
+      "morning_notice": true,
+      "advance_notice": "С 2 декабря увеличиваем долю желе Kitten.",
+      "wet": [
+        16,
+        16,
+        33
+      ],
+      "daily_wet": 65,
+      "wet_new": [
+        21,
+        21,
+        43
+      ],
+      "daily_wet_new": 85,
+      "dry": [
+        14,
+        14,
+        15
+      ],
+      "daily_dry": 43,
+      "dry_new": [
+        0,
+        0,
+        0
+      ],
+      "daily_dry_new": 0
+    },
+    {
+      "id": "wet_step_3",
+      "start": "2026-12-04",
+      "label": "Следующий этап влажного корма",
+      "morning_notice": true,
+      "advance_notice": "С 4 декабря увеличиваем долю желе Kitten и меняем порции сухого GI.",
+      "wet": [
+        10,
+        10,
+        20
+      ],
+      "daily_wet": 40,
+      "wet_new": [
+        32,
+        32,
+        64
+      ],
+      "daily_wet_new": 128,
+      "dry": [
+        13,
+        13,
+        13
+      ],
+      "daily_dry": 39,
+      "dry_new": [
+        0,
+        0,
+        0
+      ],
+      "daily_dry_new": 0
+    },
+    {
+      "id": "wet_last_mousse",
+      "start": "2026-12-05",
+      "label": "Последний мусс GI за завтраком",
+      "morning_notice": true,
+      "advance_notice": "С 5 декабря мусс GI оставляем только в завтраке: 41 г. Меняем порции желе Kitten.",
+      "wet": [
+        41,
+        0,
+        0
+      ],
+      "daily_wet": 41,
+      "wet_new": [
+        16,
+        48,
+        64
+      ],
+      "daily_wet_new": 128,
+      "dry": [
+        13,
+        13,
+        13
+      ],
+      "daily_dry": 39,
+      "dry_new": [
+        0,
+        0,
+        0
+      ],
+      "daily_dry_new": 0
+    },
+    {
+      "id": "dry_step_1",
+      "start": "2026-12-06",
+      "label": "Добавляем сухой Kitten",
+      "morning_notice": true,
+      "advance_notice": "С 6 декабря убираем мусс GI и добавляем сухой Kitten.",
+      "wet": [
+        0,
+        0,
+        0
+      ],
+      "daily_wet": 0,
+      "wet_new": [
+        43,
+        42,
+        85
+      ],
+      "daily_wet_new": 170,
+      "dry": [
+        10,
+        10,
+        11
+      ],
+      "daily_dry": 31,
+      "dry_new": [
+        3,
+        3,
+        3
+      ],
+      "daily_dry_new": 9
+    },
+    {
+      "id": "dry_step_2",
+      "start": "2026-12-08",
+      "label": "Увеличиваем долю сухого Kitten",
+      "morning_notice": true,
+      "advance_notice": "С 8 декабря увеличиваем долю сухого Kitten.",
+      "wet": [
+        0,
+        0,
+        0
+      ],
+      "daily_wet": 0,
+      "wet_new": [
+        43,
+        42,
+        85
+      ],
+      "daily_wet_new": 170,
+      "dry": [
+        7,
+        7,
+        7
+      ],
+      "daily_dry": 21,
+      "dry_new": [
+        6,
+        7,
+        7
+      ],
+      "daily_dry_new": 20
+    },
+    {
+      "id": "dry_step_3",
+      "start": "2026-12-10",
+      "label": "Следующий этап сухого корма",
+      "morning_notice": true,
+      "advance_notice": "С 10 декабря увеличиваем долю сухого Kitten.",
+      "wet": [
+        0,
+        0,
+        0
+      ],
+      "daily_wet": 0,
+      "wet_new": [
+        43,
+        42,
+        85
+      ],
+      "daily_wet_new": 170,
+      "dry": [
+        3,
+        3,
+        4
+      ],
+      "daily_dry": 10,
+      "dry_new": [
+        11,
+        11,
+        10
+      ],
+      "daily_dry_new": 32
+    },
+    {
+      "id": "regular_kitten",
+      "start": "2026-12-12",
+      "label": "Обычный рацион Kitten",
+      "morning_notice": true,
+      "advance_notice": "С 12 декабря убираем сухой GI. Остаются желе Kitten и сухой Kitten.",
+      "wet": [
+        0,
+        0,
+        0
+      ],
+      "daily_wet": 0,
+      "wet_new": [
+        43,
+        42,
+        85
+      ],
+      "daily_wet_new": 170,
+      "dry": [
+        0,
+        0,
+        0
+      ],
+      "daily_dry": 0,
+      "dry_new": [
+        14,
+        14,
+        14
+      ],
+      "daily_dry_new": 42
+    }
+  ],
+  "dry_amounts_are_full_daily_totals": true,
+  "portion_note": "Порции взяты из вашего плана перехода. Это не индивидуальное ветеринарное назначение и не постоянная норма для растущего котёнка.",
+  "mention": "@palmette @LionZXY",
+  "food_transfer_policy": "add_full",
+  "food_products": {
+    "wet": {
+      "name": "Royal Canin Veterinary Diet Gastrointestinal Kitten Ultra Soft Mousse",
+      "label": "Мусс GI",
+      "button_label": "Мусс GI",
+      "pack_grams": 195
+    },
+    "wet_new": {
+      "name": "Royal Canin Kitten Wet Food in Jelly",
+      "label": "Желе Kitten",
+      "button_label": "Желе Kitten",
+      "pack_grams": 85
+    },
+    "dry": {
+      "name": "Royal Canin Veterinary Diet Gastrointestinal Kitten Dry Food",
+      "label": "Сухой GI",
+      "button_label": "Сухой GI"
+    },
+    "dry_new": {
+      "name": "Royal Canin Kitten Dry Food",
+      "label": "Сухой Kitten",
+      "button_label": "Сухой Kitten"
+    }
+  },
+  "nutrition_plan_id": "nutrition-2026-11-09-r5",
+  "nutrition_notice_time": "22:00",
+  "nutrition_plan": {
+    "id": "nutrition-2026-11-09-r5",
+    "approved_by": "palmette",
+    "approved_message": "telegram_-1004424243504_634",
+    "approved_at": "2026-11-09T21:57:31+00:00",
+    "effective": "2026-11-10",
+    "notice_time": "22:00",
+    "food_products": {
+      "wet": {
+        "name": "Royal Canin Veterinary Diet Gastrointestinal Kitten Ultra Soft Mousse",
+        "label": "Мусс GI",
+        "button_label": "Мусс GI",
+        "pack_grams": 195
+      },
+      "wet_new": {
+        "name": "Royal Canin Kitten Wet Food in Jelly",
+        "label": "Желе Kitten",
+        "button_label": "Желе Kitten",
+        "pack_grams": 85
+      },
+      "dry": {
+        "name": "Royal Canin Veterinary Diet Gastrointestinal Kitten Dry Food",
+        "label": "Сухой GI",
+        "button_label": "Сухой GI"
+      },
+      "dry_new": {
+        "name": "Royal Canin Kitten Dry Food",
+        "label": "Сухой Kitten",
+        "button_label": "Сухой Kitten"
+      }
+    },
+    "stages": [
+      {
+        "id": "gi_current",
+        "start": "2026-11-10",
+        "label": "Рацион до 29 ноября",
+        "morning_notice": true,
+        "advance_notice": "С 10 ноября меняем порции мусса GI и сухого GI.",
+        "wet": [
+          32,
+          32,
+          65
+        ],
+        "daily_wet": 129,
+        "wet_new": [
+          0,
+          0,
+          0
+        ],
+        "daily_wet_new": 0,
+        "dry": [
+          15,
+          15,
+          16
+        ],
+        "daily_dry": 46,
+        "dry_new": [
+          0,
+          0,
+          0
+        ],
+        "daily_dry_new": 0
+      },
+      {
+        "id": "wet_step_1",
+        "start": "2026-11-30",
+        "label": "Добавляем желе Kitten",
+        "morning_notice": true,
+        "advance_notice": "С 30 ноября добавляем желе Kitten.",
+        "wet": [
+          23,
+          23,
+          45
+        ],
+        "daily_wet": 91,
+        "wet_new": [
+          11,
+          11,
+          21
+        ],
+        "daily_wet_new": 43,
+        "dry": [
+          15,
+          15,
+          16
+        ],
+        "daily_dry": 46,
+        "dry_new": [
+          0,
+          0,
+          0
+        ],
+        "daily_dry_new": 0
+      },
+      {
+        "id": "wet_step_2",
+        "start": "2026-12-02",
+        "label": "Увеличиваем долю желе Kitten",
+        "morning_notice": true,
+        "advance_notice": "С 2 декабря увеличиваем долю желе Kitten.",
+        "wet": [
+          16,
+          16,
+          33
+        ],
+        "daily_wet": 65,
+        "wet_new": [
+          21,
+          21,
+          43
+        ],
+        "daily_wet_new": 85,
+        "dry": [
+          14,
+          14,
+          15
+        ],
+        "daily_dry": 43,
+        "dry_new": [
+          0,
+          0,
+          0
+        ],
+        "daily_dry_new": 0
+      },
+      {
+        "id": "wet_step_3",
+        "start": "2026-12-04",
+        "label": "Следующий этап влажного корма",
+        "morning_notice": true,
+        "advance_notice": "С 4 декабря увеличиваем долю желе Kitten и меняем порции сухого GI.",
+        "wet": [
+          10,
+          10,
+          20
+        ],
+        "daily_wet": 40,
+        "wet_new": [
+          32,
+          32,
+          64
+        ],
+        "daily_wet_new": 128,
+        "dry": [
+          13,
+          13,
+          13
+        ],
+        "daily_dry": 39,
+        "dry_new": [
+          0,
+          0,
+          0
+        ],
+        "daily_dry_new": 0
+      },
+      {
+        "id": "wet_last_mousse",
+        "start": "2026-12-05",
+        "label": "Последний мусс GI за завтраком",
+        "morning_notice": true,
+        "advance_notice": "С 5 декабря мусс GI оставляем только в завтраке: 41 г. Меняем порции желе Kitten.",
+        "wet": [
+          41,
+          0,
+          0
+        ],
+        "daily_wet": 41,
+        "wet_new": [
+          16,
+          48,
+          64
+        ],
+        "daily_wet_new": 128,
+        "dry": [
+          13,
+          13,
+          13
+        ],
+        "daily_dry": 39,
+        "dry_new": [
+          0,
+          0,
+          0
+        ],
+        "daily_dry_new": 0
+      },
+      {
+        "id": "dry_step_1",
+        "start": "2026-12-06",
+        "label": "Добавляем сухой Kitten",
+        "morning_notice": true,
+        "advance_notice": "С 6 декабря убираем мусс GI и добавляем сухой Kitten.",
+        "wet": [
+          0,
+          0,
+          0
+        ],
+        "daily_wet": 0,
+        "wet_new": [
+          43,
+          42,
+          85
+        ],
+        "daily_wet_new": 170,
+        "dry": [
+          10,
+          10,
+          11
+        ],
+        "daily_dry": 31,
+        "dry_new": [
+          3,
+          3,
+          3
+        ],
+        "daily_dry_new": 9
+      },
+      {
+        "id": "dry_step_2",
+        "start": "2026-12-08",
+        "label": "Увеличиваем долю сухого Kitten",
+        "morning_notice": true,
+        "advance_notice": "С 8 декабря увеличиваем долю сухого Kitten.",
+        "wet": [
+          0,
+          0,
+          0
+        ],
+        "daily_wet": 0,
+        "wet_new": [
+          43,
+          42,
+          85
+        ],
+        "daily_wet_new": 170,
+        "dry": [
+          7,
+          7,
+          7
+        ],
+        "daily_dry": 21,
+        "dry_new": [
+          6,
+          7,
+          7
+        ],
+        "daily_dry_new": 20
+      },
+      {
+        "id": "dry_step_3",
+        "start": "2026-12-10",
+        "label": "Следующий этап сухого корма",
+        "morning_notice": true,
+        "advance_notice": "С 10 декабря увеличиваем долю сухого Kitten.",
+        "wet": [
+          0,
+          0,
+          0
+        ],
+        "daily_wet": 0,
+        "wet_new": [
+          43,
+          42,
+          85
+        ],
+        "daily_wet_new": 170,
+        "dry": [
+          3,
+          3,
+          4
+        ],
+        "daily_dry": 10,
+        "dry_new": [
+          11,
+          11,
+          10
+        ],
+        "daily_dry_new": 32
+      },
+      {
+        "id": "regular_kitten",
+        "start": "2026-12-12",
+        "label": "Обычный рацион Kitten",
+        "morning_notice": true,
+        "advance_notice": "С 12 декабря убираем сухой GI. Остаются желе Kitten и сухой Kitten.",
+        "wet": [
+          0,
+          0,
+          0
+        ],
+        "daily_wet": 0,
+        "wet_new": [
+          43,
+          42,
+          85
+        ],
+        "daily_wet_new": 170,
+        "dry": [
+          0,
+          0,
+          0
+        ],
+        "daily_dry": 0,
+        "dry_new": [
+          14,
+          14,
+          14
+        ],
+        "daily_dry_new": 42
+      }
+    ],
+    "care_slots": {
+      "breakfast": {
+        "cleaning_tasks": [
+          "litter",
+          "bowls",
+          "water"
+        ],
+        "cleaning_labels": {
+          "litter": "Почистить лоток.",
+          "bowls": "Помыть миски.",
+          "water": "Налить свежую воду."
+        }
+      },
+      "lunch": {
+        "cleaning_tasks": [],
+        "cleaning_labels": {}
+      },
+      "dinner": {
+        "cleaning_tasks": [
+          "litter",
+          "bowls",
+          "water"
+        ],
+        "cleaning_labels": {
+          "litter": "Почистить лоток.",
+          "bowls": "Помыть использованные миски.",
+          "water": "Проверить питьевую воду."
+        }
+      }
+    }
+  }
+}
