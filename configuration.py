@@ -86,6 +86,13 @@ def validate_care_config(c):
             raise ValueError('Invalid cleaning flag')
         if any(k not in {'litter', 'bowls', 'water'} for k in slot.get('cleaning_tasks', [])):
             raise ValueError('Invalid cleaning task')
+        if 'cleaning_labels' in slot:
+            labels = slot['cleaning_labels']
+            effective = slot.get('cleaning_tasks', ('litter', 'bowls', 'water')) if slot['cleaning'] else ()
+            if (not isinstance(labels, dict)
+                    or any(kind not in {'litter', 'bowls', 'water'} or kind not in effective
+                           or not safe_text(label, 256) for kind, label in labels.items())):
+                raise ValueError('Invalid cleaning labels')
     stages = c['stages']
     starts = [date.fromisoformat(s['start']) for s in stages]
     if not starts or starts != sorted(set(starts)) or starts[0] != start:

@@ -8,8 +8,9 @@ The cat's name is `Acorn` in the configuration and messages.
 The source repository is [LionZXYOrg/acorn-care-bot](https://github.com/LionZXYOrg/acorn-care-bot).
 
 The example plan uses `07:00`, `14:00`, and `19:00` in `Europe/London`.
-Routine bowl washing and feeding-area wiping run once daily at breakfast.
-Litter cleaning runs at breakfast and dinner. Fresh water runs at breakfast only.
+The legacy example washes bowls and wipes the feeding area once daily at breakfast.
+Litter cleaning runs at breakfast and dinner. The legacy example replaces water only at breakfast.
+The approved November plan also washes used bowls and checks drinking water at dinner.
 Lunch has no routine cleaning.
 
 Quiet hours run from `23:00` to `07:00`, including seasonal clock changes.
@@ -132,17 +133,20 @@ Queued automatic repeat messages are suppressed before delivery.
 
 ### Approved November food transition
 
-`nutrition-plan-2026-11.json` contains the revised plan approved on November 9, 2026, in message `telegram_-1004424243504_594`.
-The revised approval splits wet food across all three meals. It replaces the earlier dinner-only distribution.
+`nutrition-plan-2026-11.json` contains the revised plan approved on November 9, 2026, in message `telegram_-1004424243504_602`.
+The latest approval replaces all earlier November portions and uses Kitten in Jelly, not the earlier wet product.
 It keeps the current ration through November 19, then changes wet food before dry food.
 The transition runs from November 20 through December 9.
-The final daily ration contains 85 g of Royal Canin Kitten in Loaf and 60 g of Royal Canin Kitten Dry.
+The final daily ration contains 85 g of Royal Canin Kitten in Jelly and 60 g of Royal Canin Kitten Dry.
 The file records exact portions for each meal, not a calculated allowance.
 The 195 g can and 85 g pouch are package weights, not meal portions.
 
 To enable this plan, place the complete file contents under `nutrition_plan` in the mounted care configuration.
 Startup applies each approved plan identity once and records its source message and content digest.
-It preserves saved task snapshots, confirmations, queued transfers, meal times, cleaning, reminder pauses, and health holds.
+It preserves saved task snapshots, confirmations, queued transfers, meal times, reminder pauses, and health holds.
+The optional `care_slots` field updates only current and future cleaning schedules.
+Earlier schedule records and existing cleaning tasks keep their original meanings.
+Each new cleaning task saves its action text, so evening water checks do not become morning water replacements.
 A held stage keeps its earlier portions until the owners approve resumption.
 The change increments the configuration revision so an earlier proposal cannot replace the new plan.
 Reusing an applied identity with different contents stops startup instead of silently replacing approved portions.
@@ -151,11 +155,13 @@ Food tasks distinguish `wet`, `wet_new`, `dry`, and `dry_new`.
 The first pair contains the old and new wet products. The second pair contains the old and new dry products.
 Messages start with caregiver mentions, then the meal title, such as `🐾 Экорн · Завтрак`, and `📅 23 ноября · 07:00`.
 The `🍽️ Кормление` section shows only the current meal, with exact grams and product names.
-For example: `☐ 11 г Gastrointestinal Kitten — влажный.`
+For example: `☐ 22 г Gastrointestinal Kitten — старый влажный.`
 Morning care groups litter, bowls, and water under `🧹 Утренний уход`.
-Evening care groups litter under `🧹 Вечерний уход`. Lunch includes care only after an explicit transfer.
+The latest plan adds evening litter, used bowls, and a drinking-water check under `🧹 Вечерний уход`.
+Lunch includes care only after an explicit transfer.
 Buttons distinguish old and new products. Legacy configurations keep their earlier presentation.
 A transfer adds food only to the same product, even after a stage change or midnight.
+An old-product transfer cannot add Loaf to Jelly. A queued product mismatch stays saved for review.
 Products with zero planned grams produce no task unless an explicit transfer adds that product.
 Existing task snapshots keep their original text and portions.
 
@@ -163,9 +169,10 @@ At 19:30 in `Europe/London`, the existing reminder worker announces the followin
 The notice runs once on each of November 19, 22, 25, 27, 29 and December 2, 5, 8.
 It runs even when automatic task repeats are off.
 A health hold suppresses transition notices but keeps scheduled care active.
-Advance notices use `🔄 Экорн · Завтра меняются порции!`, the new daily totals, and `Все три кормления будут по новым граммовкам.`
+Advance notices use `🔄 Экорн · Завтра меняем порции!`, the new daily totals, and `🐾 С завтрашнего завтрака кормим по новым граммовкам!`
 Only the first breakfast of a new stage includes `🔄 Сегодня новые порции!`.
-Updated or refreshed checklists omit this line. Other days omit stage explanations.
+Updated or refreshed checklists omit this line. Transition meals show their stage number.
+After December 9, food rows use the full names of the regular products.
 Routine checklists never list all three meals or daily totals.
 This plan replaces the earlier provisional dry-only stage and its 78 g notice.
 

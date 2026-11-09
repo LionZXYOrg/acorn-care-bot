@@ -203,6 +203,10 @@ def ensure_checklist(s, day, slot, index):
             'done_by': None, 'done_at': None, 'skip_by': None, 'skip_at': None,
         }
         task.update(food_metadata(s['config'], kind))
+        if kind in CLEANING and kind in slot.get('cleaning_labels', {}):
+            task['cleaning_text'] = slot['cleaning_labels'][kind]
+        if stage['id'] == 'regular_kitten' and kind in ('wet_new', 'dry_new'):
+            task['plain_product'] = True
         s['tasks'][tid] = task
         checklist['task_ids'].append(tid)
     s['checklists'][cid] = checklist
@@ -285,6 +289,16 @@ def apply_carryovers(s, cid):
             task.update(food_metadata(s['config'], item['type']))
             # A queued carry retains its product snapshot, even across installation.
             task.update(item.get('food_metadata', {}))
+            if item.get('cleaning_text'):
+                task['cleaning_text'] = item['cleaning_text']
+        if (food and task is not None and item.get('food_metadata', {}).get('food_name')
+                and task.get('food_name')
+                and item['food_metadata']['food_name'] != task['food_name']):
+            if not item.get('needs_review'):
+                audit(s, 'food_transfer_needs_review', 'configuration', instant(item['due_at']),
+                      target_id=key, reason='food_product_changed')
+            item['needs_review'] = 'food_product_changed'
+            continue
         if food and task is not None:
             add_carried_food(task, portions)
         # Legacy entries without recorded grams remain reminder-only transfers.
@@ -311,6 +325,9 @@ def move_to_next(s, task_id, actor, now, message_id=None, telegram_user_id=None)
         raise ValueError('Этот пункт следующего ухода уже закрыт. Текущий пункт не изменён.')
     food = task['type'] in FOOD_TYPES
     add_food = food and s['config'].get('food_transfer_policy') == 'add_full'
+    target_food = (target or {}).get('food_name') or food_metadata(s['config'], task['type']).get('food_name')
+    if add_food and task.get('food_name') and target_food and task['food_name'] != target_food:
+        raise ValueError('В следующем кормлении другой продукт. Уточните перенос. Текущий пункт не изменён.')
     planned = not food or add_food or food_portions(stage_for(s, at.date()), task['type'])[index] > 0
     if planned:
         if target is not None:
@@ -324,6 +341,8 @@ def move_to_next(s, task_id, actor, now, message_id=None, telegram_user_id=None)
                 'checklist': cid, 'type': task['type'], 'due_at': iso(at), 'source_ids': []})
             if task_id not in item['source_ids']:
                 item['source_ids'].append(task_id)
+            if task.get('cleaning_text'):
+                item.setdefault('cleaning_text', task['cleaning_text'])
             if add_food:
                 item.setdefault('food_grams', {}).setdefault(task_id, task['grams'])
                 if task.get('food_name'):
@@ -455,6 +474,8 @@ def short_task(task):
         return f'Влажный корм, {wet_amount(task["grams"], task.get("wet_can_grams"))}'
     if kind == 'dry':
         return f'Сухой корм, {task["grams"]} г'
+    if task.get('cleaning_text'):
+        return task['cleaning_text'].rstrip('.')
     return {'litter': 'Лоток и мусор вокруг', 'bowls': 'Место кормления и миски',
             'water': 'Свежая вода'}[kind]
 
@@ -508,9 +529,11 @@ def revised_nutrition(config):
 
 def product_row(task):
     """Use the saved product identity, with the food type stated in Russian."""
+    if task.get('plain_product'):
+        return f'☐ {grams_text(task["grams"])} г {task["food_name"]}.'
     name = re.sub(r'^Royal Canin ', '', task['food_name'])
     name = re.sub(r' (Wet|Dry)$', '', name)
-    kind = {'wet': 'влажный', 'wet_new': 'новый влажный',
+    kind = {'wet': 'старый влажный', 'wet_new': 'новый влажный',
             'dry': 'сухой', 'dry_new': 'новый сухой'}[task['type']]
     return f'☐ {grams_text(task["grams"])} г {name} — {kind}.'
 
@@ -555,7 +578,7 @@ def task_line(task, primary=False, state=None):
     elif kind == 'dry':
         text = f'☐ Дать {task["grams"]} г сухого корма.' if primary else f'☐ {short_task(task)}.'
     else:
-        text = '☐ ' + CLEANING[kind]
+        text = '☐ ' + task.get('cleaning_text', CLEANING[kind])
     if task.get('carried_grams'):
         amount = (wet_amount(task['carried_grams'], task.get('wet_can_grams'))
                   if kind in ('wet', 'wet_new') else f'{task["carried_grams"]} г')
@@ -728,6 +751,11 @@ def render_checklist(s, cid, updated=False, first_announcement=False):
         if items:
             lines.extend(['', title])
             lines.extend(task_line(task, primary=True, state=s) for task in items)
+            transitions = ('wet_step_1', 'wet_step_2', 'wet_step_3', 'wet_complete',
+                           'dry_step_1', 'dry_step_2', 'dry_step_3')
+            if revised and items is feeding and stage['id'] in transitions:
+                step = transitions.index(stage['id']) + 1
+                lines.extend(['', f'🔄 Этап {step} · Переход на новый корм'])
     lines.append('')
     if all(task['status'] == 'done' for task in tasks):
         lines.append('✅ Всё выполнено. Спасибо!')
@@ -774,14 +802,25 @@ def render_reminders(s, tasks, morning=False):
     return '\n'.join(lines)
 
 
+def notice_food_label(config, kind):
+    return {'wet': 'старого влажного', 'wet_new': 'нового влажного',
+            'dry': 'старого сухого', 'dry_new': 'нового сухого'}[kind]
+
+
 def nutrition_notice(config, stage):
-    lines = ['🔄 Экорн · Завтра меняются порции!' if revised_nutrition(config)
-             else '🔄 Acorn · Завтра меняем корм!', '', stage['advance_notice'], '',
-             '🍽️ Новый рацион на сутки:']
-    lines.extend(f'{food_label(config, kind)}: {grams_text(total)} г'
-                 for kind, total in stage_food_totals(stage).items() if total)
-    lines.extend(['', 'Все три кормления будут по новым граммовкам.'
-                  if revised_nutrition(config) else '🐾 Завтра кормим по новым граммовкам!'])
+    revised = revised_nutrition(config)
+    lines = ['🔄 Экорн · Завтра меняем порции!' if revised
+             else '🔄 Acorn · Завтра меняем корм!', '',
+             ('📅 ' if revised else '') + stage['advance_notice'], '',
+             '🍽️ Новая суточная дозировка:' if revised else '🍽️ Новый рацион на сутки:']
+    if revised:
+        lines.extend(f'- {grams_text(total)} г {notice_food_label(config, kind)}.'
+                     for kind, total in stage_food_totals(stage).items() if total)
+    else:
+        lines.extend(f'{food_label(config, kind)}: {grams_text(total)} г'
+                     for kind, total in stage_food_totals(stage).items() if total)
+    lines.extend(['', '🐾 С завтрашнего завтрака кормим по новым граммовкам!'
+                  if revised else '🐾 Завтра кормим по новым граммовкам!'])
     return '\n'.join(lines)
 
 

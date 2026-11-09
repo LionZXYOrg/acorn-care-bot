@@ -16,7 +16,7 @@ from test_service import FakeClient, CHAT, TOPIC, BOT_ID
 PRODUCTS = {
     'wet': {'name': 'Royal Canin Gastrointestinal Kitten Wet',
             'label': 'Старый влажный', 'button_label': 'Старый влажный', 'pack_grams': 195},
-    'wet_new': {'name': 'Royal Canin Kitten in Loaf',
+    'wet_new': {'name': 'Royal Canin Kitten in Jelly',
                 'label': 'Новый влажный', 'button_label': 'Новый влажный', 'pack_grams': 85},
     'dry': {'name': 'Royal Canin Gastrointestinal Kitten Dry',
             'label': 'Старый сухой', 'button_label': 'Старый сухой'},
@@ -57,8 +57,8 @@ class RevisedNutritionFormatTests(unittest.TestCase):
         self.assertTrue(text.startswith('@palmette @LionZXY\n\n🐾 Экорн · Завтрак\n'
                                         '📅 23 ноября · 07:00\n'))
         self.assertIn('\n🍽️ Кормление\n'
-                      '☐ 11 г Gastrointestinal Kitten — влажный.\n'
-                      '☐ 14 г Kitten in Loaf — новый влажный.\n'
+                      '☐ 11 г Gastrointestinal Kitten — старый влажный.\n'
+                      '☐ 14 г Kitten in Jelly — новый влажный.\n'
                       '☐ 20 г Gastrointestinal Kitten — сухой.', text)
         self.assertIn('\n🧹 Утренний уход\n', text)
         for kind in ('litter', 'bowls', 'water'):
@@ -88,7 +88,7 @@ class RevisedNutritionFormatTests(unittest.TestCase):
         lunch = care.render_checklist(s, checklist(s, 1))
         self.assertIn('🐾 Экорн · Обед\n📅 23 ноября · 14:00', lunch)
         self.assertNotIn('🧹', lunch)
-        self.assertIn('☐ 12 г Gastrointestinal Kitten — влажный.', lunch)
+        self.assertIn('☐ 12 г Gastrointestinal Kitten — старый влажный.', lunch)
         self.assertNotIn('11 г', lunch)
         dinner = care.render_checklist(s, checklist(s, 2))
         self.assertIn('🐾 Экорн · Ужин\n📅 23 ноября · 19:00', dinner)
@@ -130,7 +130,7 @@ class RevisedNutritionFormatTests(unittest.TestCase):
         target = checklist(s, 1)
         text = care.render_checklist(s, target)
         self.assertIn('🧹 Перенесённый уход', text)
-        self.assertIn('☐ 23 г Gastrointestinal Kitten — влажный.', text)
+        self.assertIn('☐ 23 г Gastrointestinal Kitten — старый влажный.', text)
         self.assertIn('Включая перенос: 11 г.', text)
         self.assertEqual(s['tasks'][cid + '_wet']['status'], 'skipped')
         self.assertIn('Весь объём добавлен к следующей порции.', care.render_checklist(s, cid))
@@ -156,7 +156,7 @@ class RevisedNutritionFormatTests(unittest.TestCase):
         self.assertFalse(result['show_alert'])
         text = '\n'.join(inline_ui.page_text(s, panel, page) for page in panel['pages'])
         self.assertIn('✅ Royal Canin Gastrointestinal Kitten Wet, 11 г: @palmette, 07:01.', text)
-        self.assertIn('☐ 14 г Kitten in Loaf — новый влажный.', text)
+        self.assertIn('☐ 14 г Kitten in Jelly — новый влажный.', text)
         self.assertNotIn('🔄 Сегодня новые порции!', text)
         before = copy.deepcopy(s)
         inline_ui.accept_callback(s, callback, {101}, BOT_ID, at(hhmm='07:02'), CHAT, TOPIC)
@@ -167,15 +167,15 @@ class RevisedNutritionFormatTests(unittest.TestCase):
         s['last_tick'] = care.iso(at('2026-11-22', '06:00'))
         care.tick(s, at('2026-11-22', '19:00'))
         text = care.tick(s, at('2026-11-22', '19:30'))
-        self.assertTrue(text.startswith('@palmette @LionZXY\n\n🔄 Экорн · Завтра меняются порции!'))
-        self.assertIn('Старый влажный: 36 г\nНовый влажный: 45 г\nСтарый сухой: 63 г', text)
-        self.assertTrue(text.endswith('Все три кормления будут по новым граммовкам.'))
+        self.assertTrue(text.startswith('@palmette @LionZXY\n\n🔄 Экорн · Завтра меняем порции!'))
+        self.assertIn('- 36 г старого влажного.\n- 45 г нового влажного.\n- 63 г старого сухого.', text)
+        self.assertTrue(text.endswith('🐾 С завтрашнего завтрака кормим по новым граммовкам!'))
         self.assertEqual(care.tick(s, at('2026-11-22', '19:31')), 'NO_REPLY')
 
     def test_food_products_without_plan_id_also_use_new_format(self):
         s = state()
         del s['config']['nutrition_plan_id']
-        self.assertIn('☐ 11 г Gastrointestinal Kitten — влажный.',
+        self.assertIn('☐ 11 г Gastrointestinal Kitten — старый влажный.',
                       care.render_checklist(s, checklist(s)))
 
     def test_first_delivery_keeps_banner_but_later_panel_refresh_drops_it(self):
