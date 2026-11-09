@@ -15,17 +15,17 @@ from storage import Store
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN = json.loads((ROOT / 'nutrition-plan-2026-11.json').read_text())
-NOW = care.instant('2026-11-09T10:12:57+00:00')
+NOW = care.instant('2026-11-09T10:34:37+00:00')
 EXPECTED = [
-    ('2026-11-09', [0, 0, 65], [0, 0, 0], [21, 20, 21], [0, 0, 0]),
-    ('2026-11-20', [0, 0, 49], [0, 0, 21], [20, 20, 21], [0, 0, 0]),
-    ('2026-11-23', [0, 0, 33], [0, 0, 43], [20, 19, 20], [0, 0, 0]),
-    ('2026-11-26', [0, 0, 16], [0, 0, 64], [20, 19, 20], [0, 0, 0]),
-    ('2026-11-28', [0, 0, 0], [0, 0, 85], [19, 19, 20], [0, 0, 0]),
-    ('2026-11-30', [0, 0, 0], [0, 0, 85], [15, 14, 15], [5, 5, 5]),
-    ('2026-12-03', [0, 0, 0], [0, 0, 85], [10, 9, 10], [10, 10, 10]),
-    ('2026-12-06', [0, 0, 0], [0, 0, 85], [5, 5, 5], [15, 15, 15]),
-    ('2026-12-09', [0, 0, 0], [0, 0, 85], [0, 0, 0], [20, 20, 20]),
+    ('2026-11-09', [22, 21, 22], [0, 0, 0], [21, 20, 21], [0, 0, 0]),
+    ('2026-11-20', [16, 16, 17], [7, 7, 7], [20, 20, 21], [0, 0, 0]),
+    ('2026-11-23', [11, 11, 11], [14, 14, 15], [20, 19, 20], [0, 0, 0]),
+    ('2026-11-26', [5, 5, 6], [21, 21, 22], [20, 19, 20], [0, 0, 0]),
+    ('2026-11-28', [0, 0, 0], [28, 28, 29], [19, 19, 20], [0, 0, 0]),
+    ('2026-11-30', [0, 0, 0], [28, 28, 29], [15, 14, 15], [5, 5, 5]),
+    ('2026-12-03', [0, 0, 0], [28, 28, 29], [10, 9, 10], [10, 10, 10]),
+    ('2026-12-06', [0, 0, 0], [28, 28, 29], [5, 5, 5], [15, 15, 15]),
+    ('2026-12-09', [0, 0, 0], [28, 28, 29], [0, 0, 0], [20, 20, 20]),
 ]
 
 
@@ -37,7 +37,7 @@ def approved_state():
 
 class ExactNutritionPlanTests(unittest.TestCase):
     def test_all_products_and_pack_sizes(self):
-        self.assertEqual(PLAN['approved_message'], 'telegram_-1004424243504_592')
+        self.assertEqual(PLAN['approved_message'], 'telegram_-1004424243504_594')
         products = PLAN['food_products']
         self.assertEqual({key: p['name'] for key, p in products.items()}, {
             'wet': 'Royal Canin Gastrointestinal Kitten Wet',
@@ -193,7 +193,7 @@ class NutritionStartupTests(unittest.TestCase):
         text = care.tick(after, care.instant('2026-11-20T07:00:00+00:00'))
         self.assertIn('Кормление', text)
         self.assertIn('смена этапов приостановлена', text)
-        self.assertNotIn('С сегодняшнего дня новые порции', text)
+        self.assertNotIn('Сегодня новые порции', text)
 
     def test_earlier_snapshot_does_not_override_a_later_hold_of_the_same_stage(self):
         with self.store.transaction() as state:
@@ -206,6 +206,33 @@ class NutritionStartupTests(unittest.TestCase):
         later = care.instant('2026-11-12T09:00:00+00:00')
         care.health_hold(after, 'telegram:101', 'Later synthetic hold', later)
         self.assertEqual(care.stage_for(after, date(2026, 12, 9))['dry'], [22, 20, 21])
+
+    def test_revised_plan_supersedes_earlier_approval_without_rewriting_tasks(self):
+        earlier = copy.deepcopy(PLAN)
+        earlier.update(id='nutrition-2026-11-09',
+                       approved_message='telegram_-1004424243504_592',
+                       approved_at='2026-11-09T10:12:57+00:00')
+        for stage in earlier['stages']:
+            for kind in ('wet', 'wet_new'):
+                stage[kind] = [0, 0, stage['daily_' + kind]]
+        with self.store.transaction() as state:
+            apply_nutrition_plan(state, earlier, NOW)
+            cid = care.ensure_checklist(state, NOW.date(), state['config']['slots'][0], 0)
+            self.assertNotIn(cid + '_wet', state['tasks'])
+            state['tasks'][cid + '_dry'].update(
+                status='done', done_by='telegram:101', done_at=care.iso(NOW))
+        before = self.store.snapshot()
+        after = self.bind()
+        for key in ('tasks', 'checklists', 'carryovers', 'standalone', 'schedule_history'):
+            self.assertEqual(after.get(key), before.get(key), key)
+        self.assertEqual(after['config']['nutrition_plan_id'], PLAN['id'])
+        self.assertEqual(after['config']['stages'][2]['wet'], [22, 21, 22])
+        self.assertEqual(after['revision'], 2)
+        self.assertEqual(set(after['applied_nutrition_plans']), {earlier['id'], PLAN['id']})
+        newday = date(2026, 11, 10)
+        cid = care.ensure_checklist(after, newday, after['config']['slots'][0], 0)
+        self.assertEqual(after['tasks'][cid + '_wet']['grams'], 22)
+        self.assertEqual(after['tasks'][cid + '_dry']['grams'], 21)
 
     def test_reused_identity_with_different_plan_is_rejected_atomically(self):
         self.bind()

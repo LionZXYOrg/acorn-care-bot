@@ -338,6 +338,8 @@ def move_to_next(s, task_id, actor, now, message_id=None, telegram_user_id=None)
     if add_food:
         task['moved_food_grams'] = task['grams']
         extra['food_added_grams'] = task['grams']
+    if revised_nutrition(s['config']):
+        clear_stage_banner(s, task['checklist'])
     audit(s, 'move_to_next', actor, now, task_id=task_id, target_id=key if planned else None,
           target_due_at=iso(at), food_without_addition=food and not add_food,
           message_id=message_id, telegram_user_id=telegram_user_id, **extra)
@@ -394,6 +396,10 @@ def generate_due(s, now):
 
 
 def mark_old_feedings(s, now):
+    if revised_nutrition(s['config']):
+        for panel in s.get('inline_panels', {}).values():
+            if panel.get('status') == 'sent':
+                clear_stage_banner(s, panel.get('primary'))
     for task in s['tasks'].values():
         if task['status'] in CLOSED or task['type'] not in FOOD_TYPES:
             continue
@@ -496,6 +502,29 @@ def display_actor(state, actor, max_name_units=MAX_CAREGIVER_LABEL_UNITS):
     return caregiver_name(actor, max_name_units) or 'участник'
 
 
+def revised_nutrition(config):
+    return bool(config.get('nutrition_plan_id') or config.get('food_products'))
+
+
+def product_row(task):
+    """Use the saved product identity, with the food type stated in Russian."""
+    name = re.sub(r'^Royal Canin ', '', task['food_name'])
+    name = re.sub(r' (Wet|Dry)$', '', name)
+    kind = {'wet': 'влажный', 'wet_new': 'новый влажный',
+            'dry': 'сухой', 'dry_new': 'новый сухой'}[task['type']]
+    return f'☐ {grams_text(task["grams"])} г {name} — {kind}.'
+
+
+def clear_stage_banner(s, cid):
+    """Remove the first-announcement banner without shifting inline row bindings."""
+    for panel in s.get('inline_panels', {}).values():
+        if panel.get('primary') == cid:
+            for page in panel.get('pages', []):
+                page['template'] = '\n'.join(
+                    '' if line == '🔄 Сегодня новые порции!' else line
+                    for line in page['template'].split('\n'))
+
+
 def task_line(task, primary=False, state=None):
     kind = task['type']
     if task['status'] == 'done':
@@ -515,6 +544,9 @@ def task_line(task, primary=False, state=None):
         return text
     if task.get('needs_clarification'):
         text = f'☐ Нужно уточнить: была ли выдана порция «{short_task(task)}»?'
+    elif (primary and state and revised_nutrition(state['config'])
+          and kind in FOOD_TYPES and task.get('food_name')):
+        text = product_row(task)
     elif kind in FOOD_TYPES and (task.get('food_name') or kind in ('wet_new', 'dry_new')):
         text = f'☐ Дать {short_task(task)}.' if primary else f'☐ {short_task(task)}.'
     elif kind == 'wet':
@@ -632,13 +664,16 @@ def prior_warning(s, cid):
             'Уточните, выдавали ли эти порции. Не добавляйте их к новой порции.']
 
 
-def render_checklist(s, cid, updated=False):
+def render_checklist(s, cid, updated=False, first_announcement=False):
     checklist = s['checklists'][cid]
     stage = checklist['stage']
     day = date.fromisoformat(checklist['date'])
     tasks = [s['tasks'][key] for key in checklist['task_ids']]
     feeding = [task for task in tasks if task['type'] in FOOD_TYPES]
     cleaning = [task for task in tasks if task['type'] in CLEANING]
+    revised = (revised_nutrition(s['config'])
+               and (s['config'].get('nutrition_plan_id')
+                    or any(task.get('food_name') for task in feeding)))
     greeting = {'breakfast': 'доброе утро', 'lunch': 'добрый день',
                 'dinner': 'добрый вечер'}.get(checklist['slot'], 'здравствуйте')
     if updated:
@@ -650,14 +685,25 @@ def render_checklist(s, cid, updated=False):
         introduction = f'{s["config"]["mention"]}, {greeting}! {action}'
     lines = [f'🐾 Acorn · {checklist["label"].lower()}',
              f'{day_label(day)} · {checklist["time"]}', introduction]
+    if revised:
+        meal = {'breakfast': 'Завтрак', 'lunch': 'Обед', 'dinner': 'Ужин'}.get(
+            checklist['slot'], checklist['label'])
+        lines = [s['config']['mention'], '', f'🐾 Экорн · {meal}',
+                 f'📅 {day_label(day)} · {checklist["time"]}']
     if s.get('progression_hold'):
         lines.extend(['', '⚠️ ' + stage_label(stage, day, s)])
-    if not updated:
+    if not updated or revised:
         warning = prior_warning(s, cid)
         if warning:
             lines.extend([''] + warning)
     first_slot = s['config']['slots'][0]['time']
-    if (not updated and not s.get('progression_hold') and day.isoformat() == stage['start']
+    if (revised and not updated
+            and (not checklist.get('announced_at') or first_announcement)
+            and not s.get('progression_hold') and day.isoformat() == stage['start']
+            and checklist['slot'] == 'breakfast' and stage.get('morning_notice', True)
+            and all(task['status'] == 'pending' for task in tasks)):
+        lines.extend(['', '🔄 Сегодня новые порции!'])
+    if (not revised and not updated and not s.get('progression_hold') and day.isoformat() == stage['start']
             and checklist['time'] == first_slot and stage.get('morning_notice', True)):
         transition = stage.get('morning_notice') is True
         lines.extend(['', '🔄 С сегодняшнего дня новые порции!' if transition
@@ -674,7 +720,11 @@ def render_checklist(s, cid, updated=False):
                     values.append(f'{stage["dry"][i]} г сухого')
             lines.append(f'{slot["time"]}: ' + ' + '.join(values) + '.')
     cleaning_title = '🧹 Уборка и вода' if any(task['type'] == 'water' for task in cleaning) else '🧹 Уборка'
-    for title, items in [('🍽 Кормление', feeding), (cleaning_title, cleaning)]:
+    if revised:
+        cleaning_title = {'breakfast': '🧹 Утренний уход',
+                          'dinner': '🧹 Вечерний уход'}.get(checklist['slot'], '🧹 Перенесённый уход')
+    for title, items in [('🍽️ Кормление' if revised else '🍽 Кормление', feeding),
+                         (cleaning_title, cleaning)]:
         if items:
             lines.extend(['', title])
             lines.extend(task_line(task, primary=True, state=s) for task in items)
@@ -725,11 +775,13 @@ def render_reminders(s, tasks, morning=False):
 
 
 def nutrition_notice(config, stage):
-    lines = ['🔄 Acorn · Завтра меняем корм!', '', stage['advance_notice'], '',
+    lines = ['🔄 Экорн · Завтра меняются порции!' if revised_nutrition(config)
+             else '🔄 Acorn · Завтра меняем корм!', '', stage['advance_notice'], '',
              '🍽️ Новый рацион на сутки:']
     lines.extend(f'{food_label(config, kind)}: {grams_text(total)} г'
                  for kind, total in stage_food_totals(stage).items() if total)
-    lines.extend(['', '🐾 Завтра кормим по новым граммовкам!'])
+    lines.extend(['', 'Все три кормления будут по новым граммовкам.'
+                  if revised_nutrition(config) else '🐾 Завтра кормим по новым граммовкам!'])
     return '\n'.join(lines)
 
 
@@ -860,7 +912,16 @@ def refresh(s, emission_id, now):
     has_primary = bool(item['primary'] and any(task['status'] != 'deferred'
                                              for task in unresolved(s, item['primary'])))
     if has_primary:
-        blocks.append(render_checklist(s, item['primary']))
+        # The worker refreshes a queued message before its first send, too.
+        # That is still the first announcement, not an edit of a sent checklist.
+        first_delivery = any(
+            job.get('emission') == emission_id and job.get('status') == 'pending'
+            and not job.get('message_ids')
+            for job in s.get('standalone', {}).get('outbox', {}).values())
+        first_delivery = first_delivery and item['primary'].startswith(now.date().isoformat())
+        blocks.append(render_checklist(
+            s, item['primary'], updated=revised_nutrition(s['config']) and not first_delivery,
+            first_announcement=first_delivery))
     tasks = [s['tasks'][key] for key in item['repeat_ids']
              if s['tasks'][key]['status'] not in CLOSED | {'deferred'}
              and (s['config'].get('automatic_repeats', True)
@@ -903,6 +964,8 @@ def update(s, args, now):
             until = allowed_time(plus_minutes(now, args.minutes), s['config'])
             task.update(status='deferred', snoozed_until=iso(until), next_repeat_at=iso(until))
         changed.append(key)
+    if revised_nutrition(s['config']):
+        clear_stage_banner(s, cid)
     audit(s, args.action, args.actor, now, task_ids=changed, message_id=args.message_id)
     result = render_checklist(s, cid, updated=True)
     if not changed:

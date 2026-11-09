@@ -209,7 +209,7 @@ class NutritionTaskTests(unittest.TestCase):
             self.assertEqual(task['food_name'], PRODUCTS[kind]['name'])
             self.assertEqual(task['food_label'], PRODUCTS[kind]['label'])
             self.assertEqual(task['button_name'], PRODUCTS[kind]['button_label'])
-            self.assertIn(PRODUCTS[kind]['name'] + ', 10 г', text)
+            self.assertIn(care.product_row(task), text)
         self.assertEqual(self.state['tasks'][cid + '_wet']['wet_can_grams'], 195)
         self.assertEqual(self.state['tasks'][cid + '_wet_new']['wet_can_grams'], 85)
         before = copy.deepcopy(self.state['tasks'])
@@ -465,10 +465,10 @@ class NutritionNoticeTests(unittest.TestCase):
         self.assertEqual(care.tick(self.state, at('2026-11-19', '19:29')), 'NO_REPLY')
         text = care.tick(self.state, at('2026-11-19', '19:30'))
         stage = self.state['config']['stages'][3]
-        expected = ('@palmette @LionZXY\n\n🔄 Acorn · Завтра меняем корм!\n\n'
+        expected = ('@palmette @LionZXY\n\n🔄 Экорн · Завтра меняются порции!\n\n'
                     + stage['advance_notice'] + '\n\n🍽️ Новый рацион на сутки:\n'
                     'Старый влажный: 49 г\nНовый влажный: 21 г\nСтарый сухой: 61 г\n\n'
-                    '🐾 Завтра кормим по новым граммовкам!')
+                    'Все три кормления будут по новым граммовкам.')
         self.assertEqual(text, expected)
         self.assertNotIn('Новый сухой', text)
         self.assertEqual(self.state['nutrition_notices']['wet_step_1']['prepared_at'],
@@ -480,10 +480,10 @@ class NutritionNoticeTests(unittest.TestCase):
     def test_automatic_repeats_do_not_control_or_duplicate_transition_notice(self):
         self.state['config']['automatic_repeats'] = True
         text = self.evening()
-        self.assertEqual(text.count('Завтра меняем корм!'), 1)
+        self.assertEqual(text.count('Завтра меняются порции!'), 1)
         text = care.tick(self.state, at('2026-11-19', '20:00'))
         self.assertNotEqual(text, 'NO_REPLY')
-        self.assertNotIn('Завтра меняем корм!', text)
+        self.assertNotIn('Завтра меняются порции!', text)
         self.assertEqual(list(self.state['nutrition_notices']), ['wet_step_1'])
 
     def test_notice_is_prepared_once_across_ticks_and_restart(self):
@@ -494,7 +494,7 @@ class NutritionNoticeTests(unittest.TestCase):
         self.assertEqual(care.tick(self.state, at('2026-11-19', '20:00')), 'NO_REPLY')
         self.assertEqual(self.state['nutrition_notices'], prepared)
         text = care.tick(self.state, at('2026-11-20', '07:00'))
-        self.assertNotIn('Завтра меняем корм', text)
+        self.assertNotIn('Завтра меняются порции', text)
         self.assertIsNone(self.state['progression_hold'])
 
     def test_every_transition_has_its_own_notice_and_no_legacy_78g_warning(self):
@@ -502,7 +502,7 @@ class NutritionNoticeTests(unittest.TestCase):
             day = (date.fromisoformat(start) - timedelta(days=1)).isoformat()
             with self.subTest(stage=identity):
                 text = self.evening(day)
-                self.assertIn('Завтра меняем корм!', text)
+                self.assertIn('Завтра меняются порции!', text)
                 self.assertNotIn('78 г', text)
                 self.assertNotIn('переход на сухой корм', text)
                 self.assertIn(identity, self.state['nutrition_notices'])
@@ -526,11 +526,11 @@ class NutritionNoticeTests(unittest.TestCase):
 
     def test_downtime_does_not_replay_stale_day_before_notices(self):
         text = tick_today(self.state, '2026-11-20', '07:00')
-        self.assertNotIn('Завтра меняем корм!', text)
+        self.assertNotIn('Завтра меняются порции!', text)
         self.assertNotIn('nutrition_notices', self.state)
         self.state['last_tick'] = care.iso(at('2026-11-19', '06:00'))
         text = care.tick(self.state, at('2026-11-23', '07:00'))
-        self.assertNotIn('Завтра меняем корм!', text)
+        self.assertNotIn('Завтра меняются порции!', text)
         self.assertNotIn('nutrition_notices', self.state)
 
     def test_hold_pause_and_quiet_hours_suppress_preparation(self):
@@ -547,21 +547,21 @@ class NutritionNoticeTests(unittest.TestCase):
         self.state['reminder_pause'] = None
         self.assertEqual(care.tick(self.state, at('2026-11-19', '23:00')), 'NO_REPLY')
         self.assertNotIn('nutrition_notices', self.state)
-        self.assertIn('Завтра меняем корм!', care.tick(self.state, at('2026-11-19', '22:59')))
+        self.assertIn('Завтра меняются порции!', care.tick(self.state, at('2026-11-19', '22:59')))
 
     def test_pause_until_next_day_does_not_send_stale_notice_after_resume(self):
         tick_today(self.state, '2026-11-19', '19:00')
         self.state['reminder_pause'] = {'until': '2026-11-20T06:00:00+00:00'}
         self.assertEqual(care.tick(self.state, at('2026-11-19', '19:30')), 'NO_REPLY')
         text = care.tick(self.state, at('2026-11-20', '07:00'))
-        self.assertNotIn('Завтра меняем корм!', text)
+        self.assertNotIn('Завтра меняются порции!', text)
         self.assertNotIn('nutrition_notices', self.state)
 
     def test_refresh_suppresses_prepared_notice_after_new_hold_or_date_change(self):
         self.evening()
         eid = self.state['last_emission_id']
         before = copy.deepcopy(self.state['nutrition_notices'])
-        self.assertIn('Завтра меняем корм!', care.refresh(self.state, eid, at('2026-11-19', '19:31')))
+        self.assertIn('Завтра меняются порции!', care.refresh(self.state, eid, at('2026-11-19', '19:31')))
         care.health_hold(self.state, 'palmette', 'Health check', at('2026-11-19', '19:31'))
         self.assertEqual(care.refresh(self.state, eid, at('2026-11-19', '19:32')), 'NO_REPLY')
         self.assertEqual(self.state['nutrition_notices'], before)
@@ -570,27 +570,25 @@ class NutritionNoticeTests(unittest.TestCase):
 
     def test_refresh_keeps_primary_and_other_notices_under_hold(self):
         text = tick_today(self.state, '2026-11-19', '19:30')
-        self.assertIn('Завтра меняем корм!', text)
+        self.assertIn('Завтра меняются порции!', text)
         eid = self.state['last_emission_id']
         self.state['emissions'][eid]['notices'].append('A separate existing notice')
         care.health_hold(self.state, 'palmette', 'Health check', at('2026-11-19', '19:31'))
         text = care.refresh(self.state, eid, at('2026-11-19', '19:32'))
-        self.assertIn('Дать Royal Canin Gastrointestinal Kitten Wet, 65 г', text)
+        self.assertIn('г Gastrointestinal Kitten — влажный.', text)
         self.assertIn('A separate existing notice', text)
-        self.assertNotIn('Завтра меняем корм!', text)
+        self.assertNotIn('Завтра меняются порции!', text)
 
-    def test_first_breakfast_has_exact_new_line_and_all_three_meals(self):
+    def test_first_breakfast_has_exact_new_line_and_only_current_meal(self):
         for start, _, *portions in STEPS:
             with self.subTest(day=start):
                 state = state_with_plan()
                 text = tick_today(state, start, '07:00')
-                self.assertIn('\n🔄 С сегодняшнего дня новые порции!\n', text)
+                self.assertIn('\n🔄 Сегодня новые порции!\n', text)
                 self.assertNotIn('**Сегодня меняются порции**', text)
-                for index, hhmm in enumerate(('07:00', '14:00', '19:00')):
-                    values = [f'{PRODUCTS[kind]["label"]}: {grams[index]} г'
-                              for kind, grams in zip(FOOD_TYPES, portions) if grams[index]]
-                    self.assertIn(hhmm + ': ' + ' + '.join(values) + '.', text)
-                self.assertNotIn('78 г', text)
+                self.assertNotIn('14:00:', text)
+                self.assertNotIn('19:00:', text)
+                self.assertNotIn('Суточная порция', text)
                 self.assertEqual(care.tick(state, at(start, '07:01')), 'NO_REPLY')
 
     def test_hold_suppresses_morning_change_notice_for_new_and_legacy_stages(self):
@@ -601,7 +599,7 @@ class NutritionNoticeTests(unittest.TestCase):
             self.assertIn('смена этапов приостановлена', text)
             self.assertNotIn('Сегодня меняются порции', text)
             self.assertNotIn('С сегодняшнего дня новые порции!', text)
-            self.assertIn('☐ Дать', text)
+            self.assertIn('☐ ', text)
 
     def test_legacy_vet_notice_prepared_before_hold_is_also_suppressed(self):
         state = care.initial()
@@ -649,7 +647,7 @@ class NutritionOutboxTests(unittest.TestCase):
         self.bot.dispatch_once()
         sends = [p for method, p in self.client.calls if method == 'sendMessage']
         self.assertEqual(len(sends), 1)
-        self.assertIn('Завтра меняем корм!', sends[0]['text'])
+        self.assertIn('Завтра меняются порции!', sends[0]['text'])
         self.assertEqual(sends[0]['reply_markup'], {'inline_keyboard': []})
         saved = self.store.snapshot()
         eid = saved['last_emission_id']

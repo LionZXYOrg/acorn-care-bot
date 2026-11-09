@@ -16,9 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ReleaseContractTests(unittest.TestCase):
-    def test_tracked_paths_and_text_have_no_retired_name(self):
-        # Escape retired spellings so this test does not keep them in tracked text.
-        retired = ('\u0065\u006b\u006f\u0072\u006e', '\u044d\u043a\u043e\u0440\u043d')
+    def test_tracked_paths_and_text_have_no_retired_latin_name(self):
+        # The revised owner plan uses a Russian display name. Reject the retired Latin spelling.
+        retired = ('\u0065\u006b\u006f\u0072\u006e',)
         paths = subprocess.check_output(['git', 'ls-files', '-z'], cwd=ROOT).decode().split('\0')
         self.assertIn('config.example.json', paths)
         self.assertIn('service.py', paths)

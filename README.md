@@ -132,7 +132,8 @@ Queued automatic repeat messages are suppressed before delivery.
 
 ### Approved November food transition
 
-`nutrition-plan-2026-11.json` contains the owners' plan approved on November 9, 2026.
+`nutrition-plan-2026-11.json` contains the revised plan approved on November 9, 2026, in message `telegram_-1004424243504_594`.
+The revised approval splits wet food across all three meals. It replaces the earlier dinner-only distribution.
 It keeps the current ration through November 19, then changes wet food before dry food.
 The transition runs from November 20 through December 9.
 The final daily ration contains 85 g of Royal Canin Kitten in Loaf and 60 g of Royal Canin Kitten Dry.
@@ -148,7 +149,12 @@ Reusing an applied identity with different contents stops startup instead of sil
 
 Food tasks distinguish `wet`, `wet_new`, `dry`, and `dry_new`.
 The first pair contains the old and new wet products. The second pair contains the old and new dry products.
-Messages show product names and grams. Buttons distinguish old and new products.
+Messages start with caregiver mentions, then the meal title, such as `🐾 Экорн · Завтрак`, and `📅 23 ноября · 07:00`.
+The `🍽️ Кормление` section shows only the current meal, with exact grams and product names.
+For example: `☐ 11 г Gastrointestinal Kitten — влажный.`
+Morning care groups litter, bowls, and water under `🧹 Утренний уход`.
+Evening care groups litter under `🧹 Вечерний уход`. Lunch includes care only after an explicit transfer.
+Buttons distinguish old and new products. Legacy configurations keep their earlier presentation.
 A transfer adds food only to the same product, even after a stage change or midnight.
 Products with zero planned grams produce no task unless an explicit transfer adds that product.
 Existing task snapshots keep their original text and portions.
@@ -157,7 +163,10 @@ At 19:30 in `Europe/London`, the existing reminder worker announces the followin
 The notice runs once on each of November 19, 22, 25, 27, 29 and December 2, 5, 8.
 It runs even when automatic task repeats are off.
 A health hold suppresses transition notices but keeps scheduled care active.
-The first breakfast of each new stage includes `🔄 С сегодняшнего дня новые порции!` and the three meal portions.
+Advance notices use `🔄 Экорн · Завтра меняются порции!`, the new daily totals, and `Все три кормления будут по новым граммовкам.`
+Only the first breakfast of a new stage includes `🔄 Сегодня новые порции!`.
+Updated or refreshed checklists omit this line. Other days omit stage explanations.
+Routine checklists never list all three meals or daily totals.
 This plan replaces the earlier provisional dry-only stage and its 78 g notice.
 
 Do not restore an older image after this migration without reviewing the saved product-specific tasks and approved plan.
