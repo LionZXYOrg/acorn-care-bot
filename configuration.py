@@ -3,10 +3,28 @@ import json
 import math
 import os
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date, time
+from fractions import Fraction
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+
+FOOD_TYPES = ('wet', 'wet_new', 'dry', 'dry_new')
+
+
+def safe_text(value, limit):
+    """Product metadata is bounded, plain, single-line Telegram text."""
+    return (isinstance(value, str) and bool(value.strip()) and value == value.strip()
+            and len(value.encode('utf-16-le', errors='surrogatepass')) // 2 <= limit
+            and not any(unicodedata.category(ch).startswith('C') or ch in '<>'
+                        or (ch.isspace() and ch != ' ') for ch in value)
+            and ' · ' not in value)
+
+
+def valid_grams(value):
+    return (type(value) is int or (type(value) is float and math.isfinite(value))) and value >= 0
 
 
 def load_care_config(path):
@@ -34,6 +52,22 @@ def validate_care_config(c):
         raise ValueError('Invalid can weight')
     if not isinstance(c['mention'], str) or not c['mention'] or len(c['mention']) > 256:
         raise ValueError('Invalid caregiver mention')
+    products = c.get('food_products', {})
+    if not isinstance(products, dict) or any(kind not in FOOD_TYPES for kind in products):
+        raise ValueError('Invalid food products')
+    for product in products.values():
+        if (not isinstance(product, dict) or not safe_text(product.get('name'), 256)
+                or not safe_text(product.get('label'), 64)
+                or not safe_text(product.get('button_label'), 64)):
+            raise ValueError('Invalid food product metadata')
+        if 'pack_grams' in product and (not valid_grams(product['pack_grams']) or product['pack_grams'] <= 0):
+            raise ValueError('Invalid food pack weight')
+    if 'nutrition_plan_id' in c and not safe_text(c['nutrition_plan_id'], 256):
+        raise ValueError('Invalid nutrition plan identity')
+    if 'nutrition_notice_time' in c:
+        if not isinstance(c['nutrition_notice_time'], str) or not re.fullmatch(r'\d{2}:\d{2}', c['nutrition_notice_time']):
+            raise ValueError('Invalid nutrition notice time')
+        time.fromisoformat(c['nutrition_notice_time'])
     slots = c['slots']
     if len(slots) != 3 or [s['key'] for s in slots] != ['breakfast', 'lunch', 'dinner']:
         raise ValueError('The portion plan requires three ordered meals')
@@ -59,12 +93,20 @@ def validate_care_config(c):
     if len({s['id'] for s in stages}) != len(stages):
         raise ValueError('Duplicate stage identity')
     for stage in stages:
-        for food in ('wet', 'dry'):
-            grams = stage[food]
-            if len(grams) != len(slots) or any(type(g) not in (int, float) or not math.isfinite(g) or g < 0 for g in grams):
+        if 'morning_notice' in stage and type(stage['morning_notice']) is not bool:
+            raise ValueError('Invalid morning nutrition notice flag')
+        if 'advance_notice' in stage and not safe_text(stage['advance_notice'], 2048):
+            raise ValueError('Invalid advance nutrition notice')
+        for food in FOOD_TYPES:
+            grams = stage[food] if food in ('wet', 'dry') else stage.get(food, [0, 0, 0])
+            if not isinstance(grams, (list, tuple)) or len(grams) != len(slots) or any(not valid_grams(g) for g in grams):
                 raise ValueError('Invalid portions')
-            if sum(grams) != stage['daily_' + food]:
+            daily_key = 'daily_' + food
+            daily = stage[daily_key] if food in ('wet', 'dry') else stage.get(daily_key, 0)
+            if not valid_grams(daily) or sum((Fraction(str(g)) for g in grams), Fraction(0)) != Fraction(str(daily)):
                 raise ValueError('Daily portion does not match meal portions')
+            if food in ('wet_new', 'dry_new') and any(grams) and food not in products:
+                raise ValueError('New food requires product metadata')
 
 
 def integer(text, *, positive=False):

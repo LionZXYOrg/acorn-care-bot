@@ -20,7 +20,7 @@ LOG = logging.getLogger('acorn')
 HELP = ('Используйте кнопки или точную команду для одного сохранённого пункта:\n'
         '/done YYYY-MM-DD_HH:MM_wet\n/skip YYYY-MM-DD_HH:MM_wet\n'
         '/snooze YYYY-MM-DD_HH:MM_wet 30\n'
-        'Виды: wet, dry, litter, bowls, water. Отложить можно на 30 или 60 минут.\n'
+        'Виды: wet, wet_new, dry, dry_new, litter, bowls, water. Отложить можно на 30 или 60 минут.\n'
         '/health_hold причина: остановить смену этапов, но не уход.\n'
         'Общее «готово» не закрывает задачи. Старые порции не нужно выдавать повторно.')
 
@@ -109,7 +109,7 @@ class Bot:
                 care.audit(state, 'telegram_health_hold', actor, now,
                            telegram_user_id=message['from']['id'], message_id=mid)
                 return answer
-            match = re.fullmatch(r'(\d{4}-\d\d-\d\d_\d\d:\d\d)_(wet|dry|litter|bowls|water)(?: (30|60))?', rest)
+            match = re.fullmatch(r'(\d{4}-\d\d-\d\d_\d\d:\d\d)_(wet|wet_new|dry|dry_new|litter|bowls|water)(?: (30|60))?', rest)
             if command not in {'/done', '/skip', '/snooze'} or not match:
                 return HELP
             if (command == '/snooze') != bool(match[3]):
@@ -226,6 +226,13 @@ class Bot:
                         job['status'] = 'suppressed' if pure_automatic else 'needs_review'
                         state['inline_panels'][job['panel']]['status'] = job['status']
                         return
+            if job.get('panel') and job['message_ids']:
+                item = state['emissions'].get(job.get('emission'))
+                if item and care.emission_notices(state, item, now) != item['notices']:
+                    # Do not rebind already delivered pages or send a stale transition.
+                    job['status'] = 'needs_review'
+                    state['inline_panels'][job['panel']]['status'] = 'needs_review'
+                    return
             if job.get('panel') and not job['message_ids']:
                 text = care.refresh(state, job['emission'], now)
                 if text == 'NO_REPLY':

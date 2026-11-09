@@ -12,6 +12,7 @@ import uuid
 import unicodedata
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
+from decimal import Decimal, localcontext
 from fractions import Fraction
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -19,7 +20,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = Path(os.environ.get('ACORN_CONFIG_PATH', ROOT / 'config.example.json'))
 STATE = Path(os.environ.get('ACORN_STATE_PATH', '/data/state.json'))
-from configuration import load_care_config
+from configuration import FOOD_TYPES, load_care_config, valid_grams, validate_care_config
 BOOT_CONFIG = load_care_config(CONFIG_PATH)
 TZ = ZoneInfo(BOOT_CONFIG['timezone'])
 DEFAULT_WET_CAN_GRAMS = BOOT_CONFIG['wet_can_grams']
@@ -122,6 +123,10 @@ def stage_for(s, day):
     stages = s['config']['stages']
     hold = s.get('progression_hold')
     if hold and day >= date.fromisoformat(hold['since'][:10]):
+        snapshot = s.get('nutrition_plan_held_stage')
+        if (snapshot and snapshot.get('id') == hold['stage']
+                and s.get('nutrition_plan_hold_since') == hold['since']):
+            return snapshot
         return next(x for x in stages if x['id'] == hold['stage'])
     eligible = [x for x in stages if date.fromisoformat(x['start']) <= day]
     return eligible[-1] if eligible else stages[0]
@@ -146,6 +151,33 @@ def checklist_id(day, slot):
     return f'{day.isoformat()}_{slot["time"]}'
 
 
+def food_portions(stage, kind):
+    return stage.get(kind, [0, 0, 0])
+
+
+def food_metadata(config, kind):
+    """Snapshot names at task creation; never relabel a saved task on upgrade."""
+    if kind not in FOOD_TYPES:
+        return {}
+    product = config.get('food_products', {}).get(kind)
+    metadata = ({'food_name': product['name'], 'food_label': product['label'],
+                 'button_name': product['button_label']} if product else {})
+    if kind in ('wet', 'wet_new'):
+        metadata['wet_can_grams'] = (product or {}).get('pack_grams', config['wet_can_grams'])
+    return metadata
+
+
+def food_label(config, kind):
+    return config.get('food_products', {}).get(kind, {}).get('label', {
+        'wet': 'Влажный корм', 'wet_new': 'Новый влажный',
+        'dry': 'Сухой корм', 'dry_new': 'Новый сухой'}[kind])
+
+
+def stage_food_totals(stage):
+    return {kind: sum((Fraction(str(g)) for g in food_portions(stage, kind)), Fraction(0))
+            for kind in FOOD_TYPES}
+
+
 def ensure_checklist(s, day, slot, index):
     cid = checklist_id(day, slot)
     if cid in s['checklists']:
@@ -157,11 +189,8 @@ def ensure_checklist(s, day, slot, index):
         'slot': slot['key'], 'label': slot['label'], 'stage': copy.deepcopy(stage),
         'task_ids': [], 'announced_at': None, 'original_message_id': None,
     }
-    entries = []
-    if stage['wet'][index]:
-        entries.append(('wet', stage['wet'][index]))
-    if stage['dry'][index]:
-        entries.append(('dry', stage['dry'][index]))
+    entries = [(kind, food_portions(stage, kind)[index]) for kind in FOOD_TYPES
+               if food_portions(stage, kind)[index] > 0]
     if slot['cleaning']:
         entries.extend((key, None) for key in slot.get('cleaning_tasks', CLEANING))
     at = wall(day, slot['time'])
@@ -173,8 +202,7 @@ def ensure_checklist(s, day, slot, index):
             'next_repeat_at': None, 'snoozed_until': None,
             'done_by': None, 'done_at': None, 'skip_by': None, 'skip_at': None,
         }
-        if kind == 'wet':
-            task['wet_can_grams'] = s['config']['wet_can_grams']
+        task.update(food_metadata(s['config'], kind))
         s['tasks'][tid] = task
         checklist['task_ids'].append(tid)
     s['checklists'][cid] = checklist
@@ -211,6 +239,16 @@ def food_grams(value):
     return int(value) if value.denominator == 1 else float(value)
 
 
+def grams_text(value):
+    """Format exact decimal sums for notices without converting back through float."""
+    value = Fraction(str(value))
+    if value.denominator == 1:
+        return str(value.numerator)
+    with localcontext() as context:
+        context.prec = len(str(abs(value.numerator))) + len(str(value.denominator)) + 1
+        return format(Decimal(value.numerator) / Decimal(value.denominator), 'f').rstrip('0').rstrip('.')
+
+
 def add_carried_food(task, portions):
     """Add each source portion once, including earlier carries in that source."""
     if not portions:
@@ -235,7 +273,7 @@ def apply_carryovers(s, cid):
         if item['checklist'] != cid:
             continue
         task = s['tasks'].get(key)
-        food = item['type'] in {'wet', 'dry'}
+        food = item['type'] in FOOD_TYPES
         portions = item.get('food_grams', {})
         if task is None and (item['type'] in CLEANING or (food and portions)):
             task = {'id': key, 'checklist': cid, 'type': item['type'], 'grams': 0 if food else None,
@@ -244,8 +282,9 @@ def apply_carryovers(s, cid):
                     'done_by': None, 'done_at': None, 'skip_by': None, 'skip_at': None}
             s['tasks'][key] = task
             checklist['task_ids'].append(key)
-            if item['type'] == 'wet':
-                task['wet_can_grams'] = s['config']['wet_can_grams']
+            task.update(food_metadata(s['config'], item['type']))
+            # A queued carry retains its product snapshot, even across installation.
+            task.update(item.get('food_metadata', {}))
         if food and task is not None:
             add_carried_food(task, portions)
         # Legacy entries without recorded grams remain reminder-only transfers.
@@ -263,16 +302,16 @@ def move_to_next(s, task_id, actor, now, message_id=None, telegram_user_id=None)
     if task is None or due(task) > now:
         raise ValueError('Задача не найдена или её время ещё не наступило. Пункт не изменён.')
     if task['status'] in CLOSED:
-        return {'status': 'already_closed', 'food': task['type'] in {'wet', 'dry'}}
+        return {'status': 'already_closed', 'food': task['type'] in FOOD_TYPES}
     at, index, slot = next_care(s, now)
     cid = checklist_id(at.date(), slot)
     key = cid + '_' + task['type']
     target = s['tasks'].get(key)
     if target is not None and target['status'] in CLOSED:
         raise ValueError('Этот пункт следующего ухода уже закрыт. Текущий пункт не изменён.')
-    food = task['type'] in {'wet', 'dry'}
+    food = task['type'] in FOOD_TYPES
     add_food = food and s['config'].get('food_transfer_policy') == 'add_full'
-    planned = not food or add_food or stage_for(s, at.date())[task['type']][index] > 0
+    planned = not food or add_food or food_portions(stage_for(s, at.date()), task['type'])[index] > 0
     if planned:
         if target is not None:
             if add_food:
@@ -287,6 +326,10 @@ def move_to_next(s, task_id, actor, now, message_id=None, telegram_user_id=None)
                 item['source_ids'].append(task_id)
             if add_food:
                 item.setdefault('food_grams', {}).setdefault(task_id, task['grams'])
+                if task.get('food_name'):
+                    item.setdefault('food_metadata', {field: task[field] for field in
+                                    ('food_name', 'food_label', 'button_name', 'wet_can_grams')
+                                    if field in task})
     task.update(status='skipped', skip_by=actor, skip_at=iso(now),
                 next_repeat_at=None, snoozed_until=None, needs_clarification=False,
                 skip_reason='next_care', moved_to=key if planned else None,
@@ -301,6 +344,8 @@ def move_to_next(s, task_id, actor, now, message_id=None, telegram_user_id=None)
     if add_food:
         extra.update(type=task['type'],
                      wet_can_grams=task.get('wet_can_grams', s['config']['wet_can_grams']))
+        if task.get('food_label'):
+            extra['food_label'] = task['food_label']
     return {'status': 'moved', 'food': food,
             'target_id': key if planned else None, 'due_at': iso(at), **extra}
 
@@ -312,7 +357,9 @@ def move_answer(result):
     if result['food']:
         if 'food_added_grams' in result:
             amount = (wet_amount(result['food_added_grams'], result['wet_can_grams'])
-                      if result['type'] == 'wet' else f'{result["food_added_grams"]} г')
+                      if result['type'] in ('wet', 'wet_new') else f'{result["food_added_grams"]} г')
+            if result.get('food_label'):
+                amount = result['food_label'] + ', ' + amount
             return f'Перенесено на {at:%d.%m %H:%M}. К следующей порции добавлено: {amount}.'
         if not result.get('target_id'):
             return 'Порция пропущена. На следующий уход этот корм не запланирован. Добавки не будет.'
@@ -348,7 +395,7 @@ def generate_due(s, now):
 
 def mark_old_feedings(s, now):
     for task in s['tasks'].values():
-        if task['status'] in CLOSED or task['type'] not in {'wet', 'dry'}:
+        if task['status'] in CLOSED or task['type'] not in FOOD_TYPES:
             continue
         at = due(task)
         next_slots = [wall(at.date(), slot['time']) for slot in slots_for_day(s, at.date())
@@ -394,6 +441,10 @@ def _legacy_wet_fraction(grams, can_grams=None, accusative=False):
 
 def short_task(task):
     kind = task['type']
+    if kind in FOOD_TYPES and task.get('food_name'):
+        return f'{task["food_name"]}, {food_grams(task["grams"])} г'
+    if kind in ('wet_new', 'dry_new'):
+        return f'{food_label({}, kind)}, {food_grams(task["grams"])} г'
     if kind == 'wet':
         return f'Влажный корм, {wet_amount(task["grams"], task.get("wet_can_grams"))}'
     if kind == 'dry':
@@ -464,6 +515,8 @@ def task_line(task, primary=False, state=None):
         return text
     if task.get('needs_clarification'):
         text = f'☐ Нужно уточнить: была ли выдана порция «{short_task(task)}»?'
+    elif kind in FOOD_TYPES and (task.get('food_name') or kind in ('wet_new', 'dry_new')):
+        text = f'☐ Дать {short_task(task)}.' if primary else f'☐ {short_task(task)}.'
     elif kind == 'wet':
         amount = wet_amount(task['grams'], task.get('wet_can_grams'), accusative=True)
         text = f'☐ Дать {amount} влажного корма.' if primary else f'☐ {short_task(task)}.'
@@ -473,7 +526,7 @@ def task_line(task, primary=False, state=None):
         text = '☐ ' + CLEANING[kind]
     if task.get('carried_grams'):
         amount = (wet_amount(task['carried_grams'], task.get('wet_can_grams'))
-                  if kind == 'wet' else f'{task["carried_grams"]} г')
+                  if kind in ('wet', 'wet_new') else f'{task["carried_grams"]} г')
         text += f' Включая перенос: {amount}.'
     if task['status'] == 'deferred' and task.get('snoozed_until'):
         text += f' Отложено до {instant(task["snoozed_until"]):%d.%m %H:%M}.'
@@ -492,13 +545,14 @@ BUTTON_TEST = '✅ Тест кнопки ' + BUTTON_BOT
 
 def button_text(task, legacy=False, can_fraction=False):
     """Include the full date and bot mention in every text button."""
-    names = {'wet': 'Влажный', 'dry': 'Сухой', 'litter': 'Лоток',
+    names = {'wet': 'Влажный', 'wet_new': 'Новый влажный',
+             'dry': 'Сухой', 'dry_new': 'Новый сухой', 'litter': 'Лоток',
              'bowls': 'Миски', 'water': 'Вода'}
-    label = names[task['type']]
-    if task['type'] == 'wet' and not legacy:
+    label = task.get('button_name', names[task['type']])
+    if task['type'] in ('wet', 'wet_new') and not legacy:
         formatter = _legacy_wet_fraction if can_fraction else wet_amount
         label += ' ' + formatter(task['grams'], task.get('wet_can_grams'))
-    elif task['type'] in {'wet', 'dry'}:
+    elif task['type'] in FOOD_TYPES:
         label += f' {task["grams"]} г'
     stamp = due(task).strftime('%d.%m.%Y %H:%M')
     return f'✅ {label} · {stamp} {BUTTON_BOT}'
@@ -552,7 +606,11 @@ def complete_button(s, text, actor, message_id, now, sender=None):
     return update(s, args, now)
 
 
-def daily_line(stage):
+def daily_line(stage, config=None):
+    if (config and config.get('food_products')) or any(kind in stage for kind in ('wet_new', 'dry_new')):
+        values = [f'{food_label(config or {}, kind)}: {grams_text(total)} г'
+                  for kind, total in stage_food_totals(stage).items() if total]
+        return 'Суточная порция: ' + ' + '.join(values) + '.'
     dry = stage['daily_dry']
     wet = stage['daily_wet']
     if wet:
@@ -563,7 +621,7 @@ def daily_line(stage):
 
 def prior_warning(s, cid):
     at = s['checklists'][cid]['date'] + '_' + s['checklists'][cid]['time']
-    old = [task for task in unresolved(s) if task['type'] in {'wet', 'dry'}
+    old = [task for task in unresolved(s) if task['type'] in FOOD_TYPES
            and task['checklist'] < at and task.get('needs_clarification')]
     if not old:
         return []
@@ -579,7 +637,7 @@ def render_checklist(s, cid, updated=False):
     stage = checklist['stage']
     day = date.fromisoformat(checklist['date'])
     tasks = [s['tasks'][key] for key in checklist['task_ids']]
-    feeding = [task for task in tasks if task['type'] in {'wet', 'dry'}]
+    feeding = [task for task in tasks if task['type'] in FOOD_TYPES]
     cleaning = [task for task in tasks if task['type'] in CLEANING]
     greeting = {'breakfast': 'доброе утро', 'lunch': 'добрый день',
                 'dinner': 'добрый вечер'}.get(checklist['slot'], 'здравствуйте')
@@ -599,14 +657,21 @@ def render_checklist(s, cid, updated=False):
         if warning:
             lines.extend([''] + warning)
     first_slot = s['config']['slots'][0]['time']
-    if not updated and day.isoformat() == stage['start'] and checklist['time'] == first_slot:
-        lines.extend(['', '**Сегодня меняются порции**'])
+    if (not updated and not s.get('progression_hold') and day.isoformat() == stage['start']
+            and checklist['time'] == first_slot and stage.get('morning_notice', True)):
+        transition = stage.get('morning_notice') is True
+        lines.extend(['', '🔄 С сегодняшнего дня новые порции!' if transition
+                      else '**Сегодня меняются порции**'])
         for i, slot in enumerate(s['config']['slots']):
-            values = []
-            if stage['wet'][i]:
-                values.append(f'{wet_amount(stage["wet"][i], s["config"]["wet_can_grams"])} влажного')
-            if stage['dry'][i]:
-                values.append(f'{stage["dry"][i]} г сухого')
+            if transition:
+                values = [f'{food_label(s["config"], kind)}: {food_grams(food_portions(stage, kind)[i])} г'
+                          for kind in FOOD_TYPES if food_portions(stage, kind)[i]]
+            else:
+                values = []
+                if stage['wet'][i]:
+                    values.append(f'{wet_amount(stage["wet"][i], s["config"]["wet_can_grams"])} влажного')
+                if stage['dry'][i]:
+                    values.append(f'{stage["dry"][i]} г сухого')
             lines.append(f'{slot["time"]}: ' + ' + '.join(values) + '.')
     cleaning_title = '🧹 Уборка и вода' if any(task['type'] == 'water' for task in cleaning) else '🧹 Уборка'
     for title, items in [('🍽 Кормление', feeding), (cleaning_title, cleaning)]:
@@ -646,7 +711,7 @@ def render_reminders(s, tasks, morning=False):
         older_tasks = [task for _, values in older for task in values]
         lines.append(f'Также открыто старых пунктов: {len(older_tasks)}. '
                      'Для списка напишите «Что осталось сделать?».' )
-        if any(task['type'] in {'wet', 'dry'} for task in older_tasks):
+        if any(task['type'] in FOOD_TYPES for task in older_tasks):
             lines.append('По старым кормлениям нужно только уточнить, выдавали ли порции.')
     for cid, values in shown:
         checklist = s['checklists'][cid]
@@ -657,6 +722,26 @@ def render_reminders(s, tasks, morning=False):
                   'Не суммируйте старые порции с новыми.',
                   'Можно ответить: «Отложить [пункты] на 30 минут» или «на 1 час».'])
     return '\n'.join(lines)
+
+
+def nutrition_notice(config, stage):
+    lines = ['🔄 Acorn · Завтра меняем корм!', '', stage['advance_notice'], '',
+             '🍽️ Новый рацион на сутки:']
+    lines.extend(f'{food_label(config, kind)}: {grams_text(total)} г'
+                 for kind, total in stage_food_totals(stage).items() if total)
+    lines.extend(['', '🐾 Завтра кормим по новым граммовкам!'])
+    return '\n'.join(lines)
+
+
+def emission_notices(s, item, now):
+    """Drop only transition notices invalidated before outbox delivery."""
+    nutrition = set(item.get('nutrition_notices', {}).values())
+    suppressed = set()
+    if nutrition and (s.get('progression_hold') or instant(item['at']).date() != now.date()):
+        suppressed.update(nutrition)
+    if s.get('progression_hold') and item.get('vet_notice'):
+        suppressed.add(item['vet_notice'])
+    return [text for text in item['notices'] if text not in suppressed]
 
 
 def tick(s, now):
@@ -717,9 +802,24 @@ def tick(s, now):
         task['next_repeat_at'] = iso(allowed_time(next_at, config))
     for cid in fresh:
         s['checklists'][cid]['announced_at'] = iso(now)
-    # Remind one day before stage five. A health hold cancels this transition notice.
-    final_start = date.fromisoformat(config['stages'][-1]['start'])
-    if (not s.get('progression_hold') and now.date() == final_start - timedelta(days=1)
+    nutrition_notices = {}
+    if not s.get('progression_hold') and now.strftime('%H:%M') >= config.get('nutrition_notice_time', '19:30'):
+        for stage in config['stages']:
+            if (stage.get('advance_notice') and now.date() == date.fromisoformat(stage['start']) - timedelta(days=1)
+                    and stage['id'] not in s.get('nutrition_notices', {})):
+                notice = nutrition_notice(config, stage)
+                blocks.append(notice)
+                extra_notices.append(notice)
+                nutrition_notices[stage['id']] = notice
+                s.setdefault('nutrition_notices', {})[stage['id']] = {'prepared_at': iso(now)}
+    # Keep the old veterinary review only for the legacy provisional dry-only stage.
+    final_stage = config['stages'][-1]
+    final_start = date.fromisoformat(final_stage['start'])
+    vet_notice = None
+    if (final_stage.get('provisional') and not config.get('nutrition_plan_id')
+            and not final_stage.get('advance_notice') and not final_stage.get('morning_notice')
+            and not any(food_portions(final_stage, kind)[i] for kind in ('wet', 'wet_new', 'dry_new') for i in range(3))
+            and not s.get('progression_hold') and now.date() == final_start - timedelta(days=1)
             and now.strftime('%H:%M') >= config['slots'][0]['time']
             and s.get('vet_notice_for') != final_start.isoformat()):
         notice = ('Завтра запланирован переход на сухой корм. '
@@ -727,6 +827,7 @@ def tick(s, now):
                   '78 г в плане указаны ориентировочно. Новую норму самостоятельно не рассчитываю.')
         blocks.append(notice)
         extra_notices.append(notice)
+        vet_notice = notice
         s['vet_notice_for'] = final_start.isoformat()
     if not blocks:
         return 'NO_REPLY'
@@ -735,7 +836,8 @@ def tick(s, now):
         'id': eid, 'at': iso(now), 'primary': primary,
         'repeat_ids': [t['id'] for t in repeated], 'morning': morning,
         'manual_repeat_ids': [t['id'] for t in repeated if t['id'] in manual_repeats],
-        'notices': extra_notices,
+        'notices': extra_notices, 'nutrition_notices': nutrition_notices,
+        'vet_notice': vet_notice,
     }
     s['last_emission_id'] = eid
     if len(s['emissions']) > 12:
@@ -765,7 +867,7 @@ def refresh(s, emission_id, now):
                   or key in item.get('manual_repeat_ids', []))]
     if tasks:
         blocks.append(render_reminders(s, tasks, morning=item['morning']))
-    blocks.extend(item['notices'])
+    blocks.extend(emission_notices(s, item, now))
     if not blocks:
         return 'NO_REPLY'
     text = '\n\n'.join(blocks)
@@ -814,6 +916,23 @@ def update(s, args, now):
 def plan_consumption(config):
     stages = config['stages']
     lines = []
+    if config.get('food_products') or any('wet_new' in stage or 'dry_new' in stage for stage in stages):
+        totals = dict.fromkeys(FOOD_TYPES, Fraction(0))
+        for i, stage in enumerate(stages[:-1]):
+            start = date.fromisoformat(stage['start'])
+            finish = date.fromisoformat(stages[i + 1]['start'])
+            days = (finish - start).days
+            values = []
+            for kind, daily in stage_food_totals(stage).items():
+                grams = daily * days
+                totals[kind] += grams
+                if grams:
+                    values.append(f'{food_label(config, kind)}: {grams_text(grams)} г')
+            lines.append(f'{stage["label"]}: {start}–{finish - timedelta(days=1)}, '
+                         f'{days} дн., ' + '; '.join(values) + '.')
+        lines.append('Всего по плану: ' + '; '.join(f'{food_label(config, kind)}: {grams_text(total)} г'
+                     for kind, total in totals.items() if total) + '. Это не фактический остаток.')
+        return lines
     total = Fraction(0)
     for i, stage in enumerate(stages[:-1]):
         start = date.fromisoformat(stage['start'])
@@ -876,17 +995,23 @@ def proposal(s, change, actor, now):
         if len(stages) != 1:
             raise ValueError('Неизвестный этап.')
         stage = stages[0]
-        for nutrient in ['wet', 'dry']:
+        for nutrient in FOOD_TYPES:
+            if nutrient not in change and nutrient in ('wet_new', 'dry_new'):
+                continue
             values = change[nutrient]
             count = len(config['slots'])
-            if len(values) != count or any(not isinstance(x, (int, float)) or x < 0 for x in values):
+            if len(values) != count or any(not valid_grams(x) for x in values):
                 raise ValueError(f'Нужно неотрицательных порций каждого вида корма: {count}.')
             stage[nutrient] = values
-            stage['daily_' + nutrient] = sum(values)
+            stage['daily_' + nutrient] = food_grams(sum((Fraction(str(x)) for x in values), Fraction(0)))
         stage['provisional'] = False
         explanation.append(f'Порции этапа «{stage["label"]}» изменятся только для будущих чек-листов.')
-        explanation.append('Влажный: ' + ', '.join(map(str, stage['wet'])) + ' г.')
-        explanation.append('Сухой: ' + ', '.join(map(str, stage['dry'])) + ' г.')
+        if config.get('food_products'):
+            explanation.extend(food_label(config, kind) + ': ' + ', '.join(map(str, food_portions(stage, kind))) + ' г.'
+                               for kind in FOOD_TYPES if any(food_portions(stage, kind)))
+        else:
+            explanation.append('Влажный: ' + ', '.join(map(str, stage['wet'])) + ' г.')
+            explanation.append('Сухой: ' + ', '.join(map(str, stage['dry'])) + ' г.')
     elif kind in {'stage_dates', 'resume_progression'}:
         starts = change['starts']
         if len(starts) != len(config['stages']):
@@ -900,6 +1025,7 @@ def proposal(s, change, actor, now):
             explanation.append('После подтверждения автоматическая смена этапов возобновится.')
     else:
         raise ValueError('Неизвестный тип изменения.')
+    validate_care_config(config)
     explanation.extend(plan_consumption(config))
     pid = uuid.uuid4().hex[:10]
     s['proposals'][pid] = {'id': pid, 'change': change, 'config': config,

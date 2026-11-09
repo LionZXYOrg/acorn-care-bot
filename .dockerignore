@@ -6,6 +6,8 @@
 !migrate.py
 !service.py
 !storage.py
+!nutrition_plan.py
+!nutrition-plan-2026-11.json
 !telegram_api.py
 !config.example.json
 !gateway.py

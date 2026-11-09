@@ -130,6 +130,40 @@ An explicit snooze still sends one reminder at the requested time.
 It does not restart automatic repeats.
 Queued automatic repeat messages are suppressed before delivery.
 
+### Approved November food transition
+
+`nutrition-plan-2026-11.json` contains the owners' plan approved on November 9, 2026.
+It keeps the current ration through November 19, then changes wet food before dry food.
+The transition runs from November 20 through December 9.
+The final daily ration contains 85 g of Royal Canin Kitten in Loaf and 60 g of Royal Canin Kitten Dry.
+The file records exact portions for each meal, not a calculated allowance.
+The 195 g can and 85 g pouch are package weights, not meal portions.
+
+To enable this plan, place the complete file contents under `nutrition_plan` in the mounted care configuration.
+Startup applies each approved plan identity once and records its source message and content digest.
+It preserves saved task snapshots, confirmations, queued transfers, meal times, cleaning, reminder pauses, and health holds.
+A held stage keeps its earlier portions until the owners approve resumption.
+The change increments the configuration revision so an earlier proposal cannot replace the new plan.
+Reusing an applied identity with different contents stops startup instead of silently replacing approved portions.
+
+Food tasks distinguish `wet`, `wet_new`, `dry`, and `dry_new`.
+The first pair contains the old and new wet products. The second pair contains the old and new dry products.
+Messages show product names and grams. Buttons distinguish old and new products.
+A transfer adds food only to the same product, even after a stage change or midnight.
+Products with zero planned grams produce no task unless an explicit transfer adds that product.
+Existing task snapshots keep their original text and portions.
+
+At 19:30 in `Europe/London`, the existing reminder worker announces the following day's stage and its daily portions.
+The notice runs once on each of November 19, 22, 25, 27, 29 and December 2, 5, 8.
+It runs even when automatic task repeats are off.
+A health hold suppresses transition notices but keeps scheduled care active.
+The first breakfast of each new stage includes `🔄 С сегодняшнего дня новые порции!` and the three meal portions.
+This plan replaces the earlier provisional dry-only stage and its 78 g notice.
+
+Do not restore an older image after this migration without reviewing the saved product-specific tasks and approved plan.
+Older images do not support the new food types.
+The original example remains available for legacy installations and tests.
+
 Set the following environment variables before startup:
 
 | Variable | Value |
@@ -188,7 +222,8 @@ For one exact task, use these commands:
 ```
 
 A task identifier contains its date, meal time, and type.
-The types are `wet`, `dry`, `litter`, `bowls`, and `water`.
+Food types are `wet`, `wet_new`, `dry`, and `dry_new`.
+Cleaning types are `litter`, `bowls`, and `water`.
 Snoozes accept `30` or `60` minutes.
 The bot does not treat an ambiguous “done” as completion of every task.
 It accepts old text-button labels only when they match one stored task exactly.

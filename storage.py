@@ -134,6 +134,10 @@ class Store:
                 if s['config'].get('automatic_repeats', True) != enabled:
                     s['config']['automatic_repeats'] = enabled
                     care.audit(s, 'automatic_repeats_changed', 'configuration', now, enabled=enabled)
+            plan = care.BOOT_CONFIG.get('nutrition_plan')
+            if plan is not None:
+                from nutrition_plan import apply_nutrition_plan
+                apply_nutrition_plan(s, plan, now)
             care.audit(s, 'standalone_started', 'service', now, bot_id=bot_id)
 
     def offset(self):

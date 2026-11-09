@@ -19,8 +19,11 @@ def task_line_size(task, primary, now):
     variants = [task, {**task, 'status': 'done', 'done_by': actor, 'done_at': stamp},
                 {**task, 'status': 'skipped', 'skip_by': actor, 'skip_at': stamp,
                  'skip_reason': 'next_care', 'moved_due_at': stamp,
-                 'moved_food_without_addition': task['type'] in {'wet', 'dry'}}]
-    for clarify in (False, task['type'] in {'wet', 'dry'}):
+                 'moved_food_without_addition': task['type'] in care.FOOD_TYPES}]
+    if task['type'] in care.FOOD_TYPES:
+        variants.append({**variants[-1], 'moved_food_without_addition': False,
+                         'moved_food_grams': task['grams']})
+    for clarify in (False, task['type'] in care.FOOD_TYPES):
         variants.append({**task, 'status': 'deferred', 'needs_clarification': clarify,
                          'snoozed_until': stamp})
     return max(len(care.task_line(value, primary=primary).encode('utf-16-le')) // 2
