@@ -88,6 +88,9 @@ class ExactNutritionPlanTests(unittest.TestCase):
                           for stage in notices],
                          ['2026-11-19', '2026-11-22', '2026-11-25', '2026-11-27',
                           '2026-11-29', '2026-12-02', '2026-12-05', '2026-12-08'])
+        dry_notice = next(stage for stage in PLAN['stages'] if stage['id'] == 'dry_step_2')['advance_notice']
+        self.assertIn('нового сухого корма Royal Canin Kitten Dry', dry_notice)
+        self.assertNotIn('влажного', dry_notice)
         self.assertEqual(PLAN['notice_time'], '19:30')
         self.assertTrue(all(stage['morning_notice'] is True for stage in notices))
         self.assertFalse(PLAN['stages'][0].get('morning_notice', False))
