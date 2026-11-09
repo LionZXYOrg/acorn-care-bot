@@ -133,11 +133,11 @@ Queued automatic repeat messages are suppressed before delivery.
 
 ### Approved November food transition
 
-`nutrition-plan-2026-11.json` contains the revised plan approved on November 9, 2026, in message `telegram_-1004424243504_602`.
+`nutrition-plan-2026-11.json` contains the revised plan approved on November 9, 2026, in message `telegram_-1004424243504_604`.
 The latest approval replaces all earlier November portions and uses Kitten in Jelly, not the earlier wet product.
 It keeps the current ration through November 19, then changes wet food before dry food.
 The transition runs from November 20 through December 9.
-The final daily ration contains 85 g of Royal Canin Kitten in Jelly and 60 g of Royal Canin Kitten Dry.
+The final daily ration contains 85 g of Royal Canin Kitten in Jelly and 63 g of Royal Canin Kitten Dry.
 The file records exact portions for each meal, not a calculated allowance.
 The 195 g can and 85 g pouch are package weights, not meal portions.
 
@@ -155,7 +155,7 @@ Food tasks distinguish `wet`, `wet_new`, `dry`, and `dry_new`.
 The first pair contains the old and new wet products. The second pair contains the old and new dry products.
 Messages start with caregiver mentions, then the meal title, such as `🐾 Экорн · Завтрак`, and `📅 23 ноября · 07:00`.
 The `🍽️ Кормление` section shows only the current meal, with exact grams and product names.
-For example: `☐ 22 г Gastrointestinal Kitten — старый влажный.`
+For example: `☐ 11 г Gastrointestinal Kitten — старый влажный.`
 Morning care groups litter, bowls, and water under `🧹 Утренний уход`.
 The latest plan adds evening litter, used bowls, and a drinking-water check under `🧹 Вечерний уход`.
 Lunch includes care only after an explicit transfer.

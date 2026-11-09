@@ -1,8 +1,8 @@
 {
-  "id": "nutrition-2026-11-09-r3",
+  "id": "nutrition-2026-11-09-r4",
   "approved_by": "palmette",
-  "approved_message": "telegram_-1004424243504_602",
-  "approved_at": "2026-11-09T10:47:58+00:00",
+  "approved_message": "telegram_-1004424243504_604",
+  "approved_at": "2026-11-09T11:30:51+00:00",
   "effective": "2026-11-09",
   "notice_time": "19:30",
   "food_products": {
@@ -35,9 +35,9 @@
       "start": "2026-11-09",
       "label": "Текущий рацион до 19 ноября",
       "wet": [
-        43,
-        43,
-        44
+        22,
+        21,
+        22
       ],
       "wet_new": [
         0,
@@ -45,18 +45,18 @@
         0
       ],
       "dry": [
-        15,
-        15,
-        16
+        21,
+        20,
+        21
       ],
       "dry_new": [
         0,
         0,
         0
       ],
-      "daily_wet": 130,
+      "daily_wet": 65,
       "daily_wet_new": 0,
-      "daily_dry": 46,
+      "daily_dry": 62,
       "daily_dry_new": 0
     },
     {
@@ -64,28 +64,28 @@
       "start": "2026-11-20",
       "label": "Начинаем новый влажный",
       "wet": [
-        33,
-        33,
-        34
+        16,
+        16,
+        17
       ],
       "wet_new": [
         7,
         7,
-        6
+        7
       ],
       "dry": [
-        16,
-        16,
-        16
+        20,
+        20,
+        21
       ],
       "dry_new": [
         0,
         0,
         0
       ],
-      "daily_wet": 100,
-      "daily_wet_new": 20,
-      "daily_dry": 48,
+      "daily_wet": 49,
+      "daily_wet_new": 21,
+      "daily_dry": 61,
       "daily_dry_new": 0,
       "morning_notice": true,
       "advance_notice": "С 20 ноября впервые добавляем Royal Canin Kitten in Jelly."
@@ -95,28 +95,28 @@
       "start": "2026-11-23",
       "label": "Увеличиваем новый влажный",
       "wet": [
-        22,
-        21,
-        22
+        11,
+        11,
+        11
       ],
       "wet_new": [
-        13,
         14,
-        13
+        14,
+        15
       ],
       "dry": [
-        17,
-        17,
-        18
+        20,
+        20,
+        20
       ],
       "dry_new": [
         0,
         0,
         0
       ],
-      "daily_wet": 65,
-      "daily_wet_new": 40,
-      "daily_dry": 52,
+      "daily_wet": 33,
+      "daily_wet_new": 43,
+      "daily_dry": 60,
       "daily_dry_new": 0,
       "morning_notice": true,
       "advance_notice": "С 23 ноября увеличиваем долю нового влажного корма Royal Canin Kitten in Jelly."
@@ -126,28 +126,28 @@
       "start": "2026-11-26",
       "label": "Почти полностью новый влажный",
       "wet": [
-        11,
-        11,
-        11
+        5,
+        5,
+        6
       ],
       "wet_new": [
+        21,
+        21,
+        22
+      ],
+      "dry": [
         20,
         20,
         20
-      ],
-      "dry": [
-        18,
-        18,
-        19
       ],
       "dry_new": [
         0,
         0,
         0
       ],
-      "daily_wet": 33,
-      "daily_wet_new": 60,
-      "daily_dry": 55,
+      "daily_wet": 16,
+      "daily_wet_new": 64,
+      "daily_dry": 60,
       "daily_dry_new": 0,
       "morning_notice": true,
       "advance_notice": "С 26 ноября переходим к следующему этапу влажного корма Royal Canin Kitten in Jelly."
@@ -167,9 +167,9 @@
         29
       ],
       "dry": [
+        20,
         19,
-        19,
-        19
+        20
       ],
       "dry_new": [
         0,
@@ -178,7 +178,7 @@
       ],
       "daily_wet": 0,
       "daily_wet_new": 85,
-      "daily_dry": 57,
+      "daily_dry": 59,
       "daily_dry_new": 0,
       "morning_notice": true,
       "advance_notice": "С 28 ноября полностью переходим на влажный Royal Canin Kitten in Jelly."
@@ -198,19 +198,19 @@
         29
       ],
       "dry": [
-        14,
+        15,
         14,
         15
       ],
       "dry_new": [
         5,
         5,
-        5
+        6
       ],
       "daily_wet": 0,
       "daily_wet_new": 85,
-      "daily_dry": 43,
-      "daily_dry_new": 15,
+      "daily_dry": 44,
+      "daily_dry_new": 16,
       "morning_notice": true,
       "advance_notice": "С 30 ноября начинаем переход на Royal Canin Kitten Dry."
     },
@@ -230,18 +230,18 @@
       ],
       "dry": [
         10,
-        9,
+        10,
         10
       ],
       "dry_new": [
         10,
         10,
-        10
+        11
       ],
       "daily_wet": 0,
       "daily_wet_new": 85,
-      "daily_dry": 29,
-      "daily_dry_new": 30,
+      "daily_dry": 30,
+      "daily_dry_new": 31,
       "morning_notice": true,
       "advance_notice": "С 3 декабря увеличиваем долю нового сухого корма Royal Canin Kitten Dry."
     },
@@ -261,18 +261,18 @@
       ],
       "dry": [
         5,
-        4,
+        5,
         5
       ],
       "dry_new": [
+        16,
         15,
-        15,
-        15
+        16
       ],
       "daily_wet": 0,
       "daily_wet_new": 85,
-      "daily_dry": 14,
-      "daily_dry_new": 45,
+      "daily_dry": 15,
+      "daily_dry_new": 47,
       "morning_notice": true,
       "advance_notice": "С 6 декабря переходим к следующему этапу сухого корма Royal Canin Kitten Dry."
     },
@@ -296,14 +296,14 @@
         0
       ],
       "dry_new": [
-        20,
-        20,
-        20
+        21,
+        21,
+        21
       ],
       "daily_wet": 0,
       "daily_wet_new": 85,
       "daily_dry": 0,
-      "daily_dry_new": 60,
+      "daily_dry_new": 63,
       "morning_notice": true,
       "advance_notice": "С 9 декабря завершаем переход на Royal Canin Kitten in Jelly и Royal Canin Kitten Dry."
     }
