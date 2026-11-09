@@ -809,7 +809,7 @@ def notice_food_label(config, kind):
 
 def nutrition_notice(config, stage):
     revised = revised_nutrition(config)
-    lines = ['😱 Экорн · Завтра меняем порции!' if revised
+    lines = ['🙀 Экорн · Завтра меняем порции!' if revised
              else '🔄 Acorn · Завтра меняем корм!', '',
              ('📅 ' if revised else '') + stage['advance_notice'], '',
              '🍽️ Новая суточная дозировка:' if revised else '🍽️ Новый рацион на сутки:']

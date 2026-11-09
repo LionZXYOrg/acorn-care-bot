@@ -101,7 +101,7 @@ class LatestNutritionApprovalTests(unittest.TestCase):
                 care.tick(state, care.wall(yesterday, '19:00'))
                 self.assertEqual(care.tick(state, care.wall(yesterday, '21:59')), 'NO_REPLY')
                 text = care.tick(state, care.wall(yesterday, '22:00'))
-                self.assertIn('😱', text)
+                self.assertIn('🙀', text)
                 self.assertIn(stage['advance_notice'], text)
                 self.assertIn('@palmette @LionZXY', text)
                 self.assertEqual(care.tick(state, care.wall(yesterday, '22:01')), 'NO_REPLY')
