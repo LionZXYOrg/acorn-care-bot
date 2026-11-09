@@ -1,0 +1,71 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: telegram-bot-suite
+spec:
+  releaseName: telegram-bot-suite
+  interval: 10m
+  timeout: 5m
+  suspend: true
+  chart:
+    spec:
+      chart: ./charts/telegram-bot-suite
+      reconcileStrategy: Revision
+      sourceRef:
+        kind: GitRepository
+        name: acorn-care-bot
+        namespace: flux-system
+      interval: 10m
+      valuesFiles:
+      - ./charts/telegram-bot-suite/values.yaml
+      - ./charts/telegram-bot-suite/values-home.yaml
+  install:
+    remediation:
+      retries: 0
+  upgrade:
+    remediation:
+      retries: 0
+  driftDetection:
+    mode: enabled
+  postRenderers:
+  - kustomize:
+      patches:
+      - target:
+          kind: Deployment
+          name: telegram-bot-suite
+        patch: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: telegram-bot-suite
+          spec:
+            template:
+              spec:
+                initContainers:
+                - name: seed-gateway
+                  resources:
+                    requests:
+                      memory: null
+                    limits:
+                      memory: null
+                containers:
+                - name: acorn
+                  resources:
+                    requests:
+                      memory: null
+                    limits:
+                      memory: null
+                - name: greenwich
+                  resources:
+                    requests:
+                      memory: null
+                    limits:
+                      memory: null
+                - name: gateway
+                  resources:
+                    requests:
+                      memory: null
+                    limits:
+                      memory: null
+  values:
+    image: ghcr.io/lionzxyorg/acorn-care-bot:deployment-must-pin

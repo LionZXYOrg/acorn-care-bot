@@ -376,7 +376,8 @@ Care state, health holds, portion history, and pending transfers remain on Acorn
 
 The [Helm chart](charts/telegram-bot-suite) defines the container and volume boundaries.
 The [operating procedure](docs/shared-suite.md) covers preparation, cutover, rollback, and bin-state migration.
-The [infra suite](https://github.com/LionZXYOrg/infra/tree/master/apps/telegram-bot-suite) contains only cluster-specific Flux resources and values.
+The [home deployment procedure](docs/home-deployment.md) covers the bot-owned manifests and public deployment profile.
+The infrastructure repository selects the tested source commit and matching image digest.
 The preparation keeps the new suite suspended with zero replicas until a coordinated cutover.
 Containers share the pod network and host kernel. They are not separate virtual machines.
 The gateway and node administrator remain trusted because the gateway can use the shared token.

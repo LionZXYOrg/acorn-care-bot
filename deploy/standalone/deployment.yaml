@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acorn-care-bot
+spec:
+  # Stop the old reminder scheduler before this activation reaches master.
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: acorn-care-bot
+  template:
+    metadata:
+      labels:
+        app: acorn-care-bot
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 75
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bot
+          image: ghcr.io/lionzxyorg/acorn-care-bot:deployment-must-pin
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TELEGRAM_BOT_TOKEN_FILE
+              value: /var/run/acorn/token
+            - name: ACORN_CONFIG_PATH
+              value: /etc/acorn/config.json
+            - name: ACORN_STATE_PATH
+              value: /data/state.json
+            - name: TELEGRAM_CHAT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: acorn-care-bot-config
+                  key: TELEGRAM_CHAT_ID
+            - name: TELEGRAM_TOPIC_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: acorn-care-bot-config
+                  key: TELEGRAM_TOPIC_ID
+            - name: TELEGRAM_ALLOWED_USER_IDS
+              valueFrom:
+                configMapKeyRef:
+                  name: acorn-care-bot-config
+                  key: TELEGRAM_ALLOWED_USER_IDS
+            - name: ACORN_FRESH_START
+              valueFrom:
+                configMapKeyRef:
+                  name: acorn-care-bot-config
+                  key: ACORN_FRESH_START
+          ports:
+            - name: health
+              containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: health
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: health
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: null
+            limits:
+              cpu: 250m
+              memory: null
+          volumeMounts:
+            - name: state
+              mountPath: /data
+            - name: token
+              mountPath: /var/run/acorn
+              readOnly: true
+            - name: configuration
+              mountPath: /etc/acorn
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: acorn-care-bot-state
+        - name: token
+          secret:
+            secretName: acorn-care-bot
+            defaultMode: 0440
+            items:
+              - key: bot-token
+                path: token
+        - name: configuration
+          configMap:
+            name: acorn-care-bot-config
+            defaultMode: 0444
+            items:
+              - key: config.json
+                path: config.json
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
