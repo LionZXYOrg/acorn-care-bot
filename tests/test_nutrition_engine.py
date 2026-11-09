@@ -465,7 +465,7 @@ class NutritionNoticeTests(unittest.TestCase):
         self.assertEqual(care.tick(self.state, at('2026-11-19', '19:29')), 'NO_REPLY')
         text = care.tick(self.state, at('2026-11-19', '19:30'))
         stage = self.state['config']['stages'][3]
-        expected = ('@palmette @LionZXY\n\n🔄 Экорн · Завтра меняем порции!\n\n'
+        expected = ('@palmette @LionZXY\n\n😱 Экорн · Завтра меняем порции!\n\n'
                     + '📅 ' + stage['advance_notice'] + '\n\n🍽️ Новая суточная дозировка:\n'
                     '- 49 г старого влажного.\n- 21 г нового влажного.\n- 61 г старого сухого.\n\n'
                     '🐾 С завтрашнего завтрака кормим по новым граммовкам!')

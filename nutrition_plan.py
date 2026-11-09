@@ -90,8 +90,8 @@ def apply_nutrition_plan(state, plan, now):
             raise ValueError('An applied nutrition plan identity cannot be reused with different content')
         return False
     candidate = validate_nutrition_plan(plan, state['config'])
-    if now.date().isoformat() < plan['effective']:
-        return False
+    # Install future stages now so the day-before notice can run.
+    # Stage selection retains all earlier dates and saved task snapshots.
     if 'care_slots' in plan:
         today = now.date().isoformat()
         history = copy.deepcopy(state.get('schedule_history', []))

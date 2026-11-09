@@ -167,7 +167,7 @@ class RevisedNutritionFormatTests(unittest.TestCase):
         s['last_tick'] = care.iso(at('2026-11-22', '06:00'))
         care.tick(s, at('2026-11-22', '19:00'))
         text = care.tick(s, at('2026-11-22', '19:30'))
-        self.assertTrue(text.startswith('@palmette @LionZXY\n\n🔄 Экорн · Завтра меняем порции!'))
+        self.assertTrue(text.startswith('@palmette @LionZXY\n\n😱 Экорн · Завтра меняем порции!'))
         self.assertIn('- 36 г старого влажного.\n- 45 г нового влажного.\n- 63 г старого сухого.', text)
         self.assertTrue(text.endswith('🐾 С завтрашнего завтрака кормим по новым граммовкам!'))
         self.assertEqual(care.tick(s, at('2026-11-22', '19:31')), 'NO_REPLY')

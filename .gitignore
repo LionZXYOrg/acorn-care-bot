@@ -17,3 +17,6 @@ secrets/
 
 # Helm uses this public schema to validate deployment values.
 !charts/telegram-bot-suite/values.schema.json
+
+# Keep the previous approved plan for migration regression tests.
+!tests/fixtures/nutrition-plan-r4.json

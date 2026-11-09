@@ -24,7 +24,7 @@ CARE_SLOTS = {
 
 
 def synthetic_plan():
-    plan = json.loads((ROOT / 'nutrition-plan-2026-11.json').read_text())
+    plan = json.loads((ROOT / 'tests/fixtures/nutrition-plan-r4.json').read_text())
     plan.update(id='synthetic-care-slots', approved_by='synthetic-owner',
                 approved_message='synthetic-owner-approval')
     plan['care_slots'] = copy.deepcopy(CARE_SLOTS)

@@ -14,7 +14,7 @@ from nutrition_plan import apply_nutrition_plan, validate_nutrition_plan
 from storage import Store
 
 ROOT = Path(__file__).resolve().parents[1]
-PLAN = json.loads((ROOT / 'nutrition-plan-2026-11.json').read_text())
+PLAN = json.loads((ROOT / 'tests/fixtures/nutrition-plan-r4.json').read_text())
 NOW = care.instant('2026-11-09T11:30:51+00:00')
 EXPECTED = [
     ('2026-11-09', [22, 21, 22], [0, 0, 0], [21, 20, 21], [0, 0, 0]),

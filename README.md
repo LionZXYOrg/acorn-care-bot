@@ -133,15 +133,21 @@ Queued automatic repeat messages are suppressed before delivery.
 
 ### Approved November food transition
 
-`nutrition-plan-2026-11.json` contains the revised plan approved on November 9, 2026, in message `telegram_-1004424243504_604`.
+`nutrition-plan-2026-11.json` contains the revised plan approved on November 9, 2026, in message `telegram_-1004424243504_634`.
 The latest approval replaces all earlier November portions and uses Kitten in Jelly, not the earlier wet product.
-It keeps the current ration through November 19, then changes wet food before dry food.
-The transition runs from November 20 through December 9.
-The final daily ration contains 85 g of Royal Canin Kitten in Jelly and 63 g of Royal Canin Kitten Dry.
+The first stage starts on November 10 and runs through November 29.
+The transition runs from November 30 through December 12.
+The final daily ration contains 170 g of Royal Canin Kitten Wet Food in Jelly and 42 g of Royal Canin Kitten Dry Food.
+December 5 has 41 g of GI mousse at breakfast, with none at lunch or dinner.
+The bot keeps this exception exactly as approved.
+Nine notices run at 22:00 Europe/London on the day before each stage.
+The first notice is due November 9. A rollout after that date cannot deliver it on time.
 The file records exact portions for each meal, not a calculated allowance.
 The 195 g can and 85 g pouch are package weights, not meal portions.
 
 To enable this plan, place the complete file contents under `nutrition_plan` in the mounted care configuration.
+Startup installs future stages before their start date, so the first advance notice can run.
+Earlier stage dates and portions stay unchanged.
 Startup applies each approved plan identity once and records its source message and content digest.
 It preserves saved task snapshots, confirmations, queued transfers, meal times, reminder pauses, and health holds.
 The optional `care_slots` field updates only current and future cleaning schedules.
@@ -165,11 +171,11 @@ An old-product transfer cannot add Loaf to Jelly. A queued product mismatch stay
 Products with zero planned grams produce no task unless an explicit transfer adds that product.
 Existing task snapshots keep their original text and portions.
 
-At 19:30 in `Europe/London`, the existing reminder worker announces the following day's stage and its daily portions.
-The notice runs once on each of November 19, 22, 25, 27, 29 and December 2, 5, 8.
+At 22:00 in `Europe/London`, the existing reminder worker announces the following day's stage and its daily portions.
+The notice runs once on each of November 9, 29 and December 1, 3, 4, 5, 7, 9, 11.
 It runs even when automatic task repeats are off.
 A health hold suppresses transition notices but keeps scheduled care active.
-Advance notices use `🔄 Экорн · Завтра меняем порции!`, the new daily totals, and `🐾 С завтрашнего завтрака кормим по новым граммовкам!`
+Advance notices use `😱 Экорн · Завтра меняем порции!`, the new daily totals, and `🐾 С завтрашнего завтрака кормим по новым граммовкам!`
 Only the first breakfast of a new stage includes `🔄 Сегодня новые порции!`.
 Updated or refreshed checklists omit this line. Transition meals show their stage number.
 After December 9, food rows use the full names of the regular products.
