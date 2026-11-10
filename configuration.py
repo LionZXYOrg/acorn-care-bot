@@ -93,6 +93,9 @@ def validate_care_config(c):
                     or any(kind not in {'litter', 'bowls', 'water'} or kind not in effective
                            or not safe_text(label, 256) for kind, label in labels.items())):
                 raise ValueError('Invalid cleaning labels')
+    if 'treatments' in c:
+        from treatments import validate
+        validate(c['treatments'], {slot['key'] for slot in slots}, safe_text)
     stages = c['stages']
     starts = [date.fromisoformat(s['start']) for s in stages]
     if not starts or starts != sorted(set(starts)) or starts[0] != start:

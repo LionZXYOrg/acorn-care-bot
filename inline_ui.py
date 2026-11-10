@@ -5,6 +5,7 @@ import re
 import secrets
 
 import care
+import treatments
 
 PREFIX = 'acorn:1:'
 TEST_TEXT = '✅ Тест кнопки'
@@ -23,11 +24,16 @@ def task_line_size(task, primary, now):
     if task['type'] in care.FOOD_TYPES:
         variants.append({**variants[-1], 'moved_food_without_addition': False,
                          'moved_food_grams': task['grams']})
-    for clarify in (False, task['type'] in care.FOOD_TYPES):
-        variants.append({**task, 'status': 'deferred', 'needs_clarification': clarify,
-                         'snoozed_until': stamp})
+    medicine = care.treatments.is_treatment(task['type'])
+    for clarify in (False, task['type'] in care.FOOD_TYPES or medicine):
+        variant = {**task, 'status': 'deferred', 'needs_clarification': clarify,
+                   'snoozed_until': stamp}
+        if medicine and clarify:
+            # Reserve the overdue warning and the bounded blocked-date summary.
+            variant['blocked_treatment_dates'] = ['9999-12-31'] * 8
+        variants.append(variant)
     return max(len(care.task_line(value, primary=primary).encode('utf-16-le')) // 2
-               for value in variants)
+               for value in variants) + (16 if medicine else 0)
 
 
 def prepare(state, parts, task_ids, now, primary=None, test=False):
@@ -216,7 +222,10 @@ def accept_callback(state, callback, allowed_ids, bot_id, now, chat_id, topic_id
                                      'telegram_callback_' + callback_id, now)
                 care.audit(state, 'inline_callback', actor, now, task_id=task['id'],
                            telegram_user_id=str(sender['id']), callback_id=callback_id)
-            answer = {'text': ('Этот пункт уже закрыт. Повторную порцию не учитываю.' if already_closed
+            closed_text = ('Эта обработка уже закрыта. Не давайте повторную дозу.'
+                           if treatments.is_treatment(task['type']) else
+                           'Этот пункт уже закрыт. Повторную порцию не учитываю.')
+            answer = {'text': (closed_text if already_closed
                                else '✅ Сохранено. Повторы для этого пункта отключены.'), 'show_alert': False}
     state['inline_receipts'] = receipts
     receipts[callback_id] = {'at': care.iso(now), 'answer': answer}

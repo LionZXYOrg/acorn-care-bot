@@ -12,6 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import care
 import inline_ui
+import treatments
 from configuration import Runtime, read_token
 from storage import Store
 from telegram_api import Client, TelegramError
@@ -20,7 +21,8 @@ LOG = logging.getLogger('acorn')
 HELP = ('Используйте кнопки или точную команду для одного сохранённого пункта:\n'
         '/done YYYY-MM-DD_HH:MM_wet\n/skip YYYY-MM-DD_HH:MM_wet\n'
         '/snooze YYYY-MM-DD_HH:MM_wet 30\n'
-        'Виды: wet, wet_new, dry, dry_new, litter, bowls, water. Отложить можно на 30 или 60 минут.\n'
+        'Виды: wet, wet_new, dry, dry_new, litter, bowls, water, treatment_<id> (например treatment_credelio).\n'
+        'Обработка: одна сохранённая доза; не удваивайте. Отложить можно на 30 или 60 минут.\n'
         '/health_hold причина: остановить смену этапов, но не уход.\n'
         'Общее «готово» не закрывает задачи. Старые порции не нужно выдавать повторно.')
 
@@ -109,7 +111,8 @@ class Bot:
                 care.audit(state, 'telegram_health_hold', actor, now,
                            telegram_user_id=message['from']['id'], message_id=mid)
                 return answer
-            match = re.fullmatch(r'(\d{4}-\d\d-\d\d_\d\d:\d\d)_(wet|wet_new|dry|dry_new|litter|bowls|water)(?: (30|60))?', rest)
+            match = re.fullmatch(r'(\d{4}-\d\d-\d\d_\d\d:\d\d)_(wet|wet_new|dry|dry_new|litter|bowls|water|'
+                                 + treatments.KIND_PATTERN + r')(?: (30|60))?', rest)
             if command not in {'/done', '/skip', '/snooze'} or not match:
                 return HELP
             if (command == '/snooze') != bool(match[3]):
@@ -234,6 +237,16 @@ class Bot:
                     state['inline_panels'][job['panel']]['status'] = 'needs_review'
                     return
             if job.get('panel') and not job['message_ids']:
+                item = state['emissions'].get(job.get('emission'), {})
+                pause = state.get('reminder_pause')
+                paused = pause and (pause['until'] == 'indefinite' or care.instant(pause['until']) > now)
+                if (item.get('treatment_ids') and (paused or care.quiet(now, state['config']))
+                        and any(state['tasks'][key]['status'] not in care.CLOSED | {'deferred'}
+                                for key in item['treatment_ids'])):
+                    # Pause delivery, not the single occurrence's first announcement.
+                    # Keep the same outbox ID so resume cannot duplicate the dose.
+                    job['retry_at'] = time.time() + 30
+                    return
                 text = care.refresh(state, job['emission'], now)
                 if text == 'NO_REPLY':
                     job['status'] = 'suppressed'

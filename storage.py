@@ -138,6 +138,9 @@ class Store:
             if plan is not None:
                 from nutrition_plan import apply_nutrition_plan
                 apply_nutrition_plan(s, plan, now)
+            if 'treatments' in care.BOOT_CONFIG:
+                from treatments import apply_configuration
+                apply_configuration(s, care.BOOT_CONFIG['treatments'], now)
             care.audit(s, 'standalone_started', 'service', now, bot_id=bot_id)
 
     def offset(self):

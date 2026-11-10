@@ -131,6 +131,32 @@ An explicit snooze still sends one reminder at the requested time.
 It does not restart automatic repeats.
 Queued automatic repeat messages are suppressed before delivery.
 
+### Scheduled treatments
+
+The optional `treatments` list adds owner-approved treatment reminders to care checklists.
+Each definition includes an identifier, start date, interval in calendar months, meal slot, text, and approval record.
+The bot records the owners' instructions. It does not prescribe medication or calculate a dose.
+
+The home configuration includes the veterinary schedule confirmed by `palmette` in message `telegram_-1004424243504_655`.
+The first reminder is November 10, 2026, at breakfast.
+The interval is three calendar months, not 90 days.
+The next dates are February 10, May 10, August 10, and November 10, 2027.
+The checklist text is `💊 Credelio Chew 48 mg, 1 tablet, после еды`.
+This owner-confirmed schedule is not general treatment advice for other cats.
+
+Treatment rows appear under `💊 Обработка` after feeding and before cleaning.
+Each row has completion and next-care transfer buttons.
+A transfer moves one saved treatment occurrence. It never adds tablets or changes food portions.
+Repeated presses cannot create another dose or overwrite a completed treatment.
+Postponement does not shift the original quarterly dates.
+
+Startup applies explicit treatment configuration without resetting existing care state.
+If today's breakfast was already announced, the existing worker sends a treatment-only addition with buttons.
+It does not repeat breakfast, reopen closed tasks, or create another scheduler.
+Restarts preserve treatment confirmations, transfers, and delivery records.
+The bot does not collect missed treatment dates into a combined dose.
+Unresolved earlier treatment requires clarification before another dose reminder.
+
 ### Approved November food transition
 
 `nutrition-plan-2026-11.json` contains the revised plan approved on November 9, 2026, in message `telegram_-1004424243504_634`.

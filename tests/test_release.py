@@ -55,7 +55,7 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertIn('CMD ["python3", "service.py"]', text)
         self.assertNotRegex(text, r'(?m)^COPY\s+(?:\.\s|\*\s)')
         for source in ('care.py', 'configuration.py', 'inline_ui.py', 'migrate.py', 'service.py',
-                       'storage.py', 'nutrition_plan.py', 'nutrition-plan-2026-11.json', 'telegram_api.py'):
+                       'storage.py', 'treatments.py', 'nutrition_plan.py', 'nutrition-plan-2026-11.json', 'telegram_api.py'):
             self.assertIn(source, text)
             self.assertIn('!' + source, (ROOT / '.dockerignore').read_text())
 

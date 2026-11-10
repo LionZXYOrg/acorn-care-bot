@@ -10,12 +10,15 @@ import sys
 import tempfile
 import uuid
 import unicodedata
+
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal, localcontext
 from fractions import Fraction
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+import treatments
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = Path(os.environ.get('ACORN_CONFIG_PATH', ROOT / 'config.example.json'))
@@ -276,6 +279,10 @@ def apply_carryovers(s, cid):
     for key, item in list(queue.items()):
         if item['checklist'] != cid:
             continue
+        if treatments.is_treatment(item.get('type')):
+            treatments.apply_carryover(s, key, item)
+            del queue[key]
+            continue
         task = s['tasks'].get(key)
         food = item['type'] in FOOD_TYPES
         portions = item.get('food_grams', {})
@@ -317,6 +324,8 @@ def move_to_next(s, task_id, actor, now, message_id=None, telegram_user_id=None)
         raise ValueError('Задача не найдена или её время ещё не наступило. Пункт не изменён.')
     if task['status'] in CLOSED:
         return {'status': 'already_closed', 'food': task['type'] in FOOD_TYPES}
+    if treatments.is_treatment(task['type']):
+        return treatments.move(s, task, actor, now, message_id, telegram_user_id)
     at, index, slot = next_care(s, now)
     cid = checklist_id(at.date(), slot)
     key = cid + '_' + task['type']
@@ -375,6 +384,9 @@ def move_answer(result):
     if result['status'] == 'already_closed':
         return 'Этот пункт уже закрыт. Ничего не перенесено повторно.'
     at = instant(result['due_at'])
+    if result.get('treatment'):
+        return (f'Та же обработка перенесена на {at:%d.%m %H:%M}. '
+                'Это одна доза, без добавления. Календарный график не изменён.')
     if result['food']:
         if 'food_added_grams' in result:
             amount = (wet_amount(result['food_added_grams'], result['wet_can_grams'])
@@ -415,6 +427,7 @@ def generate_due(s, now):
 
 
 def mark_old_feedings(s, now):
+    treatments.mark_overdue(s, now)
     if revised_nutrition(s['config']):
         for panel in s.get('inline_panels', {}).values():
             if panel.get('status') == 'sent':
@@ -466,6 +479,8 @@ def _legacy_wet_fraction(grams, can_grams=None, accusative=False):
 
 def short_task(task):
     kind = task['type']
+    if treatments.is_treatment(kind):
+        return task['treatment_text']
     if kind in FOOD_TYPES and task.get('food_name'):
         return f'{task["food_name"]}, {food_grams(task["grams"])} г'
     if kind in ('wet_new', 'dry_new'):
@@ -565,8 +580,20 @@ def task_line(task, primary=False, state=None):
                 if task.get('moved_food_grams'):
                     text += ' Весь объём добавлен к следующей порции.'
         return text
-    if task.get('needs_clarification'):
+    if treatments.is_treatment(kind) and task.get('needs_clarification'):
+        text = (f'☐ Нужно уточнить: выполнена ли обработка «{short_task(task)}» '
+                f'за {task["treatment_date"]}? Не давайте повторную или двойную дозу. '
+                'Если не уверены, уточните у ветеринара.')
+        if task.get('blocked_treatment_dates'):
+            dates = task['blocked_treatment_dates']
+            refs = ', '.join(dates[-4:])
+            if len(dates) > 4:
+                refs += f' и ещё {len(dates) - 4}'
+            text += ' Новая обработка заблокирована: ' + refs + '.'
+    elif task.get('needs_clarification'):
         text = f'☐ Нужно уточнить: была ли выдана порция «{short_task(task)}»?'
+    elif treatments.is_treatment(kind):
+        text = '☐ ' + short_task(task) + '. Если уже дали, повторно не давайте.'
     elif (primary and state and revised_nutrition(state['config'])
           and kind in FOOD_TYPES and task.get('food_name')):
         text = product_row(task)
@@ -603,7 +630,9 @@ def button_text(task, legacy=False, can_fraction=False):
     names = {'wet': 'Влажный', 'wet_new': 'Новый влажный',
              'dry': 'Сухой', 'dry_new': 'Новый сухой', 'litter': 'Лоток',
              'bowls': 'Миски', 'water': 'Вода'}
-    label = task.get('button_name', names[task['type']])
+    label = ('Обработка: ' + task['type'][len('treatment_'):]
+             if treatments.is_treatment(task['type'])
+             else task.get('button_name', names[task['type']]))
     if task['type'] in ('wet', 'wet_new') and not legacy:
         formatter = _legacy_wet_fraction if can_fraction else wet_amount
         label += ' ' + formatter(task['grams'], task.get('wet_can_grams'))
@@ -630,6 +659,8 @@ def emission_task_ids(s, emission_id):
     if not item:
         return []
     keys = list(s['checklists'][item['primary']]['task_ids']) if item['primary'] else []
+    keys.extend(key for key in item.get('treatment_ids', [])
+                if s['tasks'][key]['status'] not in CLOSED | {'deferred'})
     repeats = [s['tasks'][key] for key in item['repeat_ids']
                if s['tasks'][key]['status'] not in CLOSED | {'deferred'}
                and (s['config'].get('automatic_repeats', True)
@@ -694,6 +725,7 @@ def render_checklist(s, cid, updated=False, first_announcement=False):
     tasks = [s['tasks'][key] for key in checklist['task_ids']]
     feeding = [task for task in tasks if task['type'] in FOOD_TYPES]
     cleaning = [task for task in tasks if task['type'] in CLEANING]
+    medicine = [task for task in tasks if treatments.is_treatment(task['type'])]
     revised = (revised_nutrition(s['config'])
                and (s['config'].get('nutrition_plan_id')
                     or any(task.get('food_name') for task in feeding)))
@@ -747,7 +779,7 @@ def render_checklist(s, cid, updated=False, first_announcement=False):
         cleaning_title = {'breakfast': '🧹 Утренний уход',
                           'dinner': '🧹 Вечерний уход'}.get(checklist['slot'], '🧹 Перенесённый уход')
     for title, items in [('🍽️ Кормление' if revised else '🍽 Кормление', feeding),
-                         (cleaning_title, cleaning)]:
+                         ('💊 Обработка', medicine), (cleaning_title, cleaning)]:
         if items:
             lines.extend(['', title])
             lines.extend(task_line(task, primary=True, state=s) for task in items)
@@ -794,7 +826,11 @@ def render_reminders(s, tasks, morning=False):
     for cid, values in shown:
         checklist = s['checklists'][cid]
         lines.append(f'\n{checklist["date"]} · {checklist["time"]} · список {cid}')
-        lines.extend(task_line(task, state=s) for task in values)
+        medicine = [task for task in values if treatments.is_treatment(task['type'])]
+        lines.extend(task_line(task, state=s) for task in values if task not in medicine)
+        if medicine:
+            lines.append('💊 Обработка')
+            lines.extend(task_line(task, state=s) for task in medicine)
     lines.extend(['', 'Проверьте, пожалуйста: возможно, это уже сделано.',
                   'Если корм уже выдали, подтвердите выдачу. Повторно давать эту порцию не нужно.',
                   'Не суммируйте старые порции с новыми.',
@@ -850,7 +886,30 @@ def tick(s, now):
         return 'NO_REPLY'
     if pause:
         s['reminder_pause'] = None
+    treatments.sync(s, now)
     fresh = generate_due(s, now)
+    today_fresh = [cid for cid in fresh if s['checklists'][cid]['date'] == now.date().isoformat()]
+    next_primary = max(today_fresh) if today_fresh else None
+    supplements = [task for task in unresolved(s)
+                   if task.get('treatment_announcement_pending')
+                   and task['status'] != 'deferred' and due(task) <= now
+                   and task['checklist'] != next_primary]
+    if supplements:
+        # A separate first announcement, not an automatic repeat: leave meal
+        # announcement flags and last_tick untouched for the next dispatch.
+        eid = uuid.uuid4().hex
+        s.setdefault('emissions', {})[eid] = {
+            'id': eid, 'at': iso(now), 'primary': None, 'repeat_ids': [],
+            'manual_repeat_ids': [], 'treatment_ids': [t['id'] for t in supplements],
+            'morning': False, 'notices': [], 'nutrition_notices': {}, 'vet_notice': None}
+        s['last_emission_id'] = eid
+        for task in supplements:
+            task['treatment_announcement_pending'] = False
+            task['next_repeat_at'] = (iso(allowed_time(plus_minutes(now, config['repeat_minutes']), config))
+                                      if config.get('automatic_repeats', True) else None)
+        audit(s, 'treatment_supplement_emitted', 'scheduler', now,
+              task_ids=[t['id'] for t in supplements])
+        return config['mention'] + '\n\n' + treatments.render(s, supplements)
     mark_old_feedings(s, now)
     s['current_stage'] = stage_for(s, now.date())['id']
     s['last_tick'] = iso(now)
@@ -884,6 +943,8 @@ def tick(s, now):
         blocks.append(render_reminders(s, repeated, morning=morning))
     emitted = repeated + [task for task in eligible if task['checklist'] == primary]
     for task in emitted:
+        if treatments.is_treatment(task['type']):
+            task['treatment_announcement_pending'] = False
         if not config.get('automatic_repeats', True):
             task['next_repeat_at'] = None
             continue
@@ -932,8 +993,13 @@ def tick(s, now):
     }
     s['last_emission_id'] = eid
     if len(s['emissions']) > 12:
-        oldest = next(iter(s['emissions']))
-        del s['emissions'][oldest]
+        protected = {job.get('emission') for job in s.get('standalone', {}).get('outbox', {}).values()
+                     if job['status'] in {'pending', 'sending'}}
+        oldest = next((key for key, item in s['emissions'].items()
+                       if key != eid and not (key in protected
+                           and treatments.emission_contains_treatment(s, item))), None)
+        if oldest is not None:
+            del s['emissions'][oldest]
     audit(s, 'reminder_emitted', 'scheduler', now, task_ids=[t['id'] for t in emitted])
     text = '\n\n'.join(blocks)
     return text if primary else config['mention'] + '\n\n' + text
@@ -967,6 +1033,11 @@ def refresh(s, emission_id, now):
                   or key in item.get('manual_repeat_ids', []))]
     if tasks:
         blocks.append(render_reminders(s, tasks, morning=item['morning']))
+    medicine = [s['tasks'][key] for key in item.get('treatment_ids', [])
+                if s['tasks'][key]['status'] not in CLOSED | {'deferred'} and due(s['tasks'][key]) <= now]
+    if medicine:
+        treatments.mark_overdue(s, now)
+        blocks.append(treatments.render(s, medicine))
     blocks.extend(emission_notices(s, item, now))
     if not blocks:
         return 'NO_REPLY'
