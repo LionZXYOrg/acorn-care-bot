@@ -45,7 +45,8 @@ workers:
         "start_date": "2026-10-19",
         "repeat_minutes": 30,
         "automatic_repeats": false,
-        "bowls_morning_only": false,
+        "bowls_morning_only": true,
+        "water_morning_only": true,
         "quiet_start": "23:00",
         "quiet_end": "07:00",
         "wet_product": "Royal Canin Gastrointestinal Kitten",
@@ -82,14 +83,10 @@ workers:
             "label": "Ужин и вечерняя уборка",
             "cleaning": true,
             "cleaning_tasks": [
-              "litter",
-              "bowls",
-              "water"
+              "litter"
             ],
             "cleaning_labels": {
-              "litter": "Почистить лоток.",
-              "bowls": "Помыть использованные миски.",
-              "water": "Проверить питьевую воду."
+              "litter": "Почистить лоток."
             }
           }
         ],
@@ -815,7 +812,6 @@ workers:
             "id": "credelio",
             "start": "2026-11-10",
             "interval_months": 3,
-            "first_slot": "lunch",
             "slot": "breakfast",
             "text": "💊 Credelio Chew 48 mg, 1 tablet, после еды",
             "approved_by": "palmette",

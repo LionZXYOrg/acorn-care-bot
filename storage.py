@@ -9,27 +9,30 @@ import care
 from configuration import validate_care_config
 
 
-def morning_only_bowls_slots(slots):
+def morning_only_bowls_slots(slots, kind='bowls'):
     """Remove only routine nonbreakfast bowls, including implicit cleaning lists."""
     slots = copy.deepcopy(slots)
     for slot in slots:
         if slot['key'] == 'breakfast':
             continue
         kinds = slot.get('cleaning_tasks', list(care.CLEANING) if slot['cleaning'] else [])
-        if 'bowls' in kinds:
-            slot['cleaning_tasks'] = [kind for kind in kinds if kind != 'bowls']
+        if kind in kinds:
+            slot['cleaning_tasks'] = [item for item in kinds if item != kind]
+            if 'cleaning_labels' in slot:
+                slot['cleaning_labels'].pop(kind, None)
     return slots
 
 
-def migrate_morning_only_bowls(s, now):
+def migrate_morning_only_bowls(s, now, kind='bowls'):
     """Narrow the saved plan without replaying care or rewriting earlier history."""
+    flag = kind + '_morning_only'
     today = care.instant(now.isoformat()).date()
     effective = today.isoformat()
     active = care.slots_for_day(s, today)
-    today_slots = morning_only_bowls_slots(active)
+    today_slots = morning_only_bowls_slots(active, kind)
     needs_today = today_slots != active
-    changed = s['config'].get('bowls_morning_only') is not True
-    s['config']['bowls_morning_only'] = True
+    changed = s['config'].get(flag) is not True
+    s['config'][flag] = True
 
     plans = [s['config']]
     if s.get('pending_config'):
@@ -37,7 +40,7 @@ def migrate_morning_only_bowls(s, now):
     history = s.get('schedule_history', [])
     plans.extend(item for item in history if item['effective'] >= effective)
     for plan in plans:
-        slots = morning_only_bowls_slots(plan['slots'])
+        slots = morning_only_bowls_slots(plan['slots'], kind)
         if slots != plan['slots']:
             plan['slots'] = slots
             changed = True
@@ -51,20 +54,20 @@ def migrate_morning_only_bowls(s, now):
     skipped = []
     for key, task in s['tasks'].items():
         # A queued transfer can reach an existing task before carried_from is applied.
-        if (task['type'] != 'bowls' or task['status'] in care.CLOSED
+        if (task['type'] != kind or task['status'] in care.CLOSED
                 or 'carried_from' in task or key in s.get('carryovers', {})):
             continue
         checklist = s['checklists'][task['checklist']]
         if checklist['date'] < effective or checklist['slot'] == 'breakfast':
             continue
         task.update(status='skipped', skip_by='configuration', skip_at=care.iso(now),
-                    skip_reason='bowls_morning_only', next_repeat_at=None,
+                    skip_reason=flag, next_repeat_at=None,
                     snoozed_until=None, needs_clarification=False)
         skipped.append(key)
     if changed or skipped:
-        care.audit(s, 'bowls_morning_only_applied', 'configuration', now,
+        care.audit(s, flag + '_applied', 'configuration', now,
                    effective=effective, task_ids=skipped,
-                   reason='Routine bowls and feeding-area cleaning now run only at breakfast.')
+                   reason='Routine ' + kind + ' care now runs only at breakfast.')
 
 
 class Store:
@@ -127,8 +130,6 @@ class Store:
                     if job.get('panel'):
                         s['inline_panels'][job['panel']]['status'] = 'needs_review'
             # Apply only these explicit startup switches. Keep the rest of the saved plan.
-            if care.BOOT_CONFIG.get('bowls_morning_only') is True:
-                migrate_morning_only_bowls(s, now)
             if 'automatic_repeats' in care.BOOT_CONFIG:
                 enabled = care.BOOT_CONFIG['automatic_repeats']
                 if s['config'].get('automatic_repeats', True) != enabled:
@@ -138,6 +139,10 @@ class Store:
             if plan is not None:
                 from nutrition_plan import apply_nutrition_plan
                 apply_nutrition_plan(s, plan, now)
+            # Explicit care corrections take precedence over a nutrition plan's care slots.
+            for kind in ('bowls', 'water'):
+                if care.BOOT_CONFIG.get(kind + '_morning_only') is True:
+                    migrate_morning_only_bowls(s, now, kind)
             if 'treatments' in care.BOOT_CONFIG:
                 from treatments import apply_configuration
                 apply_configuration(s, care.BOOT_CONFIG['treatments'], now)
