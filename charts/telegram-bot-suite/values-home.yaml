@@ -815,6 +815,7 @@ workers:
             "id": "credelio",
             "start": "2026-11-10",
             "interval_months": 3,
+            "first_slot": "lunch",
             "slot": "breakfast",
             "text": "💊 Credelio Chew 48 mg, 1 tablet, после еды",
             "approved_by": "palmette",

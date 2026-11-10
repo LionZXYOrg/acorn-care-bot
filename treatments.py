@@ -27,7 +27,8 @@ def validate(definitions, slot_keys, safe_text):
     required = {'id', 'start', 'interval_months', 'slot', 'text',
                 'approved_by', 'approved_message', 'approved_at'}
     for item in definitions:
-        if not isinstance(item, dict) or set(item) != required:
+        if (not isinstance(item, dict) or not required <= set(item)
+                or set(item) - required - {'first_slot'}):
             raise ValueError('Invalid treatment definition')
         ident = item['id']
         if not isinstance(ident, str) or not re.fullmatch(ID_PATTERN, ident) or ident in seen:
@@ -45,6 +46,9 @@ def validate(definitions, slot_keys, safe_text):
             raise ValueError('Invalid treatment calendar interval')
         if not isinstance(item['slot'], str) or item['slot'] not in slot_keys:
             raise ValueError('Invalid treatment meal slot')
+        if ('first_slot' in item and (not isinstance(item['first_slot'], str)
+                or item['first_slot'] not in slot_keys)):
+            raise ValueError('Invalid first treatment meal slot')
         if not safe_text(item['text'], 256):
             raise ValueError('Invalid treatment text')
         if not all(safe_text(item[key], 128) for key in ('approved_by', 'approved_message')):
@@ -115,8 +119,10 @@ def sync(state, now):
     for definition in state['config'].get('treatments', []):
         if not scheduled_today(definition, now.date()):
             continue
+        slot_key = (definition.get('first_slot', definition['slot'])
+                    if now.date().isoformat() == definition['start'] else definition['slot'])
         index, slot = next((i, slot) for i, slot in enumerate(care.slots_for_day(state, now.date()))
-                           if slot['key'] == definition['slot'])
+                           if slot['key'] == slot_key)
         at = care.wall(now.date(), slot['time'])
         if at > now:
             continue

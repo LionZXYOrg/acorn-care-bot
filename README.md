@@ -138,7 +138,8 @@ Each definition includes an identifier, start date, interval in calendar months,
 The bot records the owners' instructions. It does not prescribe medication or calculate a dose.
 
 The home configuration includes the veterinary schedule confirmed by `palmette` in message `telegram_-1004424243504_655`.
-The first reminder is November 10, 2026, at breakfast.
+The first reminder is November 10, 2026, at lunch, as requested in message `telegram_-1004424243504_656`.
+The optional `first_slot` changes only the start date's meal. Later reminders stay at breakfast.
 The interval is three calendar months, not 90 days.
 The next dates are February 10, May 10, August 10, and November 10, 2027.
 The checklist text is `💊 Credelio Chew 48 mg, 1 tablet, после еды`.
@@ -151,7 +152,7 @@ Repeated presses cannot create another dose or overwrite a completed treatment.
 Postponement does not shift the original quarterly dates.
 
 Startup applies explicit treatment configuration without resetting existing care state.
-If today's breakfast was already announced, the existing worker sends a treatment-only addition with buttons.
+If the scheduled checklist was already announced, the existing worker sends a treatment-only addition with buttons.
 It does not repeat breakfast, reopen closed tasks, or create another scheduler.
 Restarts preserve treatment confirmations, transfers, and delivery records.
 The bot does not collect missed treatment dates into a combined dose.

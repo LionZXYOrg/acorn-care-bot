@@ -14,6 +14,7 @@ APPROVED = {
     'start': '2026-11-10',
     'interval_months': 3,
     'slot': 'breakfast',
+    'first_slot': 'lunch',
     'text': '💊 Credelio Chew 48 mg, 1 tablet, после еды',
     'approved_by': 'palmette',
     'approved_message': 'telegram_-1004424243504_655',
