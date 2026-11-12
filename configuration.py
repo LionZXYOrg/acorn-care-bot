@@ -44,6 +44,8 @@ def validate_care_config(c):
         raise ValueError('Quiet hours must cross midnight')
     if type(c.get('automatic_repeats', True)) is not bool:
         raise ValueError('Invalid automatic reminder flag')
+    if type(c.get('previous_feeding_reminders', True)) is not bool:
+        raise ValueError('Invalid previous feeding reminder flag')
     if type(c.get('bowls_morning_only', False)) is not bool:
         raise ValueError('Invalid morning-only bowls flag')
     if type(c.get('water_morning_only', False)) is not bool:

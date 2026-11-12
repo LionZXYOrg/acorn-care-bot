@@ -131,6 +131,14 @@ An explicit snooze still sends one reminder at the requested time.
 It does not restart automatic repeats.
 Queued automatic repeat messages are suppressed before delivery.
 
+To omit previous-feeding reminders, set `previous_feeding_reminders` to `false` in the care configuration.
+The default is `true`. The bot applies explicit values at startup, after it loads the nutrition plan.
+From the next meal onward, automatic messages omit old food tasks, their buttons, and previous-feeding warnings.
+This also suppresses an old food task's snooze after the next meal starts.
+Current food, cleaning, and treatment reminders stay unchanged.
+Saved task status, food amounts, and explicit transfers stay unchanged.
+Owners can still inspect and confirm historical tasks.
+
 ### Scheduled treatments
 
 The optional `treatments` list adds owner-approved treatment reminders to care checklists.

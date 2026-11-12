@@ -654,6 +654,12 @@ def reply_keyboard(s, task_ids):
             'input_field_placeholder': 'Отметьте только выполненные пункты'}
 
 
+def reminder_visible(s, task):
+    """Hide stale food from automatic displays, never from saved care history."""
+    return (s['config'].get('previous_feeding_reminders', True)
+            or task['type'] not in FOOD_TYPES or not task.get('needs_clarification'))
+
+
 def emission_task_ids(s, emission_id):
     item = s.get('emissions', {}).get(emission_id)
     if not item:
@@ -662,12 +668,13 @@ def emission_task_ids(s, emission_id):
     keys.extend(key for key in item.get('treatment_ids', [])
                 if s['tasks'][key]['status'] not in CLOSED | {'deferred'})
     repeats = [s['tasks'][key] for key in item['repeat_ids']
-               if s['tasks'][key]['status'] not in CLOSED | {'deferred'}
+               if reminder_visible(s, s['tasks'][key])
+               and s['tasks'][key]['status'] not in CLOSED | {'deferred'}
                and (s['config'].get('automatic_repeats', True)
                     or key in item.get('manual_repeat_ids', []))]
     shown = sorted({task['checklist'] for task in repeats})[-6:]
     keys.extend(task['id'] for task in repeats if task['checklist'] in shown)
-    return list(dict.fromkeys(keys))
+    return [key for key in dict.fromkeys(keys) if reminder_visible(s, s['tasks'][key])]
 
 
 def complete_button(s, text, actor, message_id, now, sender=None):
@@ -706,6 +713,8 @@ def daily_line(stage, config=None):
 
 
 def prior_warning(s, cid):
+    if not s['config'].get('previous_feeding_reminders', True):
+        return []
     at = s['checklists'][cid]['date'] + '_' + s['checklists'][cid]['time']
     old = [task for task in unresolved(s) if task['type'] in FOOD_TYPES
            and task['checklist'] < at and task.get('needs_clarification')]
@@ -718,11 +727,12 @@ def prior_warning(s, cid):
             'Уточните, выдавали ли эти порции. Не добавляйте их к новой порции.']
 
 
-def render_checklist(s, cid, updated=False, first_announcement=False):
+def render_checklist(s, cid, updated=False, first_announcement=False, automatic=False):
     checklist = s['checklists'][cid]
     stage = checklist['stage']
     day = date.fromisoformat(checklist['date'])
-    tasks = [s['tasks'][key] for key in checklist['task_ids']]
+    tasks = [s['tasks'][key] for key in checklist['task_ids']
+             if not automatic or reminder_visible(s, s['tasks'][key])]
     feeding = [task for task in tasks if task['type'] in FOOD_TYPES]
     cleaning = [task for task in tasks if task['type'] in CLEANING]
     medicine = [task for task in tasks if treatments.is_treatment(task['type'])]
@@ -735,6 +745,8 @@ def render_checklist(s, cid, updated=False, first_announcement=False):
         introduction = f'{s["config"]["mention"]}, отметки обновлены.'
     else:
         action = 'Пора покормить Acorn и немного прибраться.' if cleaning else 'Пора покормить Acorn.'
+        if automatic and not feeding and not s['config'].get('previous_feeding_reminders', True):
+            action = 'Проверьте оставшиеся пункты.'
         if any(task['status'] != 'pending' or task.get('needs_clarification') for task in tasks):
             action = 'Проверьте оставшиеся пункты.'
         introduction = f'{s["config"]["mention"]}, {greeting}! {action}'
@@ -752,13 +764,15 @@ def render_checklist(s, cid, updated=False, first_announcement=False):
         if warning:
             lines.extend([''] + warning)
     first_slot = s['config']['slots'][0]['time']
-    if (revised and not updated
+    announce_portions = feeding or not automatic or s['config'].get('previous_feeding_reminders', True)
+    if (revised and not updated and announce_portions
             and (not checklist.get('announced_at') or first_announcement)
             and not s.get('progression_hold') and day.isoformat() == stage['start']
             and checklist['slot'] == 'breakfast' and stage.get('morning_notice', True)
             and all(task['status'] == 'pending' for task in tasks)):
         lines.extend(['', '🔄 Сегодня новые порции!'])
-    if (not revised and not updated and not s.get('progression_hold') and day.isoformat() == stage['start']
+    if (not revised and not updated and announce_portions
+            and not s.get('progression_hold') and day.isoformat() == stage['start']
             and checklist['time'] == first_slot and stage.get('morning_notice', True)):
         transition = stage.get('morning_notice') is True
         lines.extend(['', '🔄 С сегодняшнего дня новые порции!' if transition
@@ -831,10 +845,13 @@ def render_reminders(s, tasks, morning=False):
         if medicine:
             lines.append('💊 Обработка')
             lines.extend(task_line(task, state=s) for task in medicine)
-    lines.extend(['', 'Проверьте, пожалуйста: возможно, это уже сделано.',
-                  'Если корм уже выдали, подтвердите выдачу. Повторно давать эту порцию не нужно.',
-                  'Не суммируйте старые порции с новыми.',
-                  'Можно ответить: «Отложить [пункты] на 30 минут» или «на 1 час».'])
+    lines.extend(['', 'Проверьте, пожалуйста: возможно, это уже сделано.'])
+    if (s['config'].get('previous_feeding_reminders', True)
+            or any(task['type'] in FOOD_TYPES for task in tasks)):
+        lines.append('Если корм уже выдали, подтвердите выдачу. Повторно давать эту порцию не нужно.')
+    if s['config'].get('previous_feeding_reminders', True):
+        lines.append('Не суммируйте старые порции с новыми.')
+    lines.append('Можно ответить: «Отложить [пункты] на 30 минут» или «на 1 час».')
     return '\n'.join(lines)
 
 
@@ -920,7 +937,8 @@ def tick(s, now):
             manual_repeats.add(task['id'])
             task['status'] = 'needs_clarification' if task['needs_clarification'] else 'pending'
             task['snoozed_until'] = None
-    eligible = [task for task in all_open if task['status'] != 'deferred']
+    eligible = [task for task in all_open
+                if task['status'] != 'deferred' and reminder_visible(s, task)]
     morning = s.get('morning_summary_date') != now.date().isoformat()
     s['morning_summary_date'] = now.date().isoformat()
     today_new = [cid for cid in fresh if s['checklists'][cid]['date'] == now.date().isoformat()]
@@ -928,7 +946,7 @@ def tick(s, now):
     blocks = []
     extra_notices = []
     if primary:
-        blocks.append(render_checklist(s, primary))
+        blocks.append(render_checklist(s, primary, automatic=True))
     repeated = []
     for task in eligible:
         checklist = s['checklists'][task['checklist']]
@@ -1014,8 +1032,9 @@ def refresh(s, emission_id, now):
         return 'NO_REPLY'
     mark_old_feedings(s, now)
     blocks = []
-    has_primary = bool(item['primary'] and any(task['status'] != 'deferred'
-                                             for task in unresolved(s, item['primary'])))
+    has_primary = bool(item['primary'] and any(
+        task['status'] != 'deferred' and reminder_visible(s, task)
+        for task in unresolved(s, item['primary'])))
     if has_primary:
         # The worker refreshes a queued message before its first send, too.
         # That is still the first announcement, not an edit of a sent checklist.
@@ -1026,9 +1045,10 @@ def refresh(s, emission_id, now):
         first_delivery = first_delivery and item['primary'].startswith(now.date().isoformat())
         blocks.append(render_checklist(
             s, item['primary'], updated=revised_nutrition(s['config']) and not first_delivery,
-            first_announcement=first_delivery))
+            first_announcement=first_delivery, automatic=True))
     tasks = [s['tasks'][key] for key in item['repeat_ids']
              if s['tasks'][key]['status'] not in CLOSED | {'deferred'}
+             and reminder_visible(s, s['tasks'][key])
              and (s['config'].get('automatic_repeats', True)
                   or key in item.get('manual_repeat_ids', []))]
     if tasks:

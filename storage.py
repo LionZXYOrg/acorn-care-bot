@@ -139,6 +139,11 @@ class Store:
             if plan is not None:
                 from nutrition_plan import apply_nutrition_plan
                 apply_nutrition_plan(s, plan, now)
+            if 'previous_feeding_reminders' in care.BOOT_CONFIG:
+                enabled = care.BOOT_CONFIG['previous_feeding_reminders']
+                if s['config'].get('previous_feeding_reminders', True) != enabled:
+                    s['config']['previous_feeding_reminders'] = enabled
+                    care.audit(s, 'previous_feeding_reminders_changed', 'configuration', now, enabled=enabled)
             # Explicit care corrections take precedence over a nutrition plan's care slots.
             for kind in ('bowls', 'water'):
                 if care.BOOT_CONFIG.get(kind + '_morning_only') is True:

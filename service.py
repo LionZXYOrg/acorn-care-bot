@@ -229,6 +229,15 @@ class Bot:
                         job['status'] = 'suppressed' if pure_automatic else 'needs_review'
                         state['inline_panels'][job['panel']]['status'] = job['status']
                         return
+            if (job.get('panel') and job['message_ids']
+                    and not state['config'].get('previous_feeding_reminders', True)):
+                care.mark_old_feedings(state, now)
+                panel = state['inline_panels'][job['panel']]
+                if any(not care.reminder_visible(state, state['tasks'][key])
+                       for key in panel['task_ids']):
+                    # Never rebind a partly delivered panel or send its remaining stale rows.
+                    job['status'] = panel['status'] = 'needs_review'
+                    return
             if job.get('panel') and job['message_ids']:
                 item = state['emissions'].get(job.get('emission'))
                 if item and care.emission_notices(state, item, now) != item['notices']:

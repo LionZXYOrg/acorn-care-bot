@@ -5,6 +5,7 @@
   "start_date": "2026-10-19",
   "repeat_minutes": 30,
   "automatic_repeats": false,
+  "previous_feeding_reminders": false,
   "bowls_morning_only": true,
   "water_morning_only": true,
   "quiet_start": "23:00",

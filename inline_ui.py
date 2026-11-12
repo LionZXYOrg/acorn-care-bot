@@ -109,6 +109,10 @@ def page_text(state, panel, page):
     closed = bool(tasks) and all(task['status'] in care.CLOSED for task in tasks)
     all_done = closed and all(task['status'] == 'done' for task in tasks)
     for index, line in enumerate(lines):
+        if (not state['config'].get('previous_feeding_reminders', True)
+                and (line.startswith('⚠️ Предыдущее кормление не подтверждено:')
+                     or line == 'Уточните, выдавали ли эти порции. Не добавляйте их к новой порции.')):
+            lines[index] = ''
         if line.startswith(state['config']['mention'] + ','):
             lines[index] = state['config']['mention'] + ', отметки обновлены.'
         if line == '✅ Отмечайте выполненное':
